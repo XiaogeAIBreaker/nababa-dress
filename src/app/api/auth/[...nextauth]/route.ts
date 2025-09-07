@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// Note: Cannot use Edge Runtime due to UserDAO bcrypt dependency in authOptions
+// Note: NextAuth.js is not compatible with Edge Runtime
 // export const runtime = 'edge';
 
 const handler = NextAuth(authOptions);

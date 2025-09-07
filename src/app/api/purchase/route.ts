@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { CreditsDAO } from '@/lib/dao/credits-dao';
 import { z } from 'zod';
 
-// Note: Cannot use Edge Runtime due to getServerSession authOptions bcrypt dependency
+// Note: Cannot use Edge Runtime due to getServerSession (NextAuth.js dependency)
 // export const runtime = 'edge';
 
 const purchaseSchema = z.object({

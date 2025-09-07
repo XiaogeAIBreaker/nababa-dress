@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import { CreditsDAO } from '@/lib/dao/credits-dao';
 
+// Note: Cannot use Edge Runtime due to getServerSession (NextAuth.js dependency)
+// export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {

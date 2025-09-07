@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { initializeDatabase, checkDatabaseTables, migrateToVipSystem } from '@/lib/init-db';
 
-// Note: Cannot use Edge Runtime due to fs and path modules in init-db
-// export const runtime = 'edge';
+export const runtime = 'edge';
 
 export async function POST() {
   try {

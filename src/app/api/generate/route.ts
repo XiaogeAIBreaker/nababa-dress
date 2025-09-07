@@ -5,7 +5,7 @@ import { UserDAO } from '@/lib/dao/user-dao';
 import { CreditsDAO } from '@/lib/dao/credits-dao';
 import { z } from 'zod';
 
-// Note: Cannot use Edge Runtime due to UserDAO bcrypt dependency
+// Note: Cannot use Edge Runtime due to getServerSession (NextAuth.js dependency)
 // export const runtime = 'edge';
 
 const generateSchema = z.object({

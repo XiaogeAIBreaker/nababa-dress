@@ -1,4 +1,6 @@
 {
-  "/generate/page": "app/generate/page.js",
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/generate/route": "app/api/generate/route.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
+  "/generate/page": "app/generate/page.js"
 }

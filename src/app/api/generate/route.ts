@@ -95,14 +95,40 @@ async function callApicoreAI(userImage: string, clothingImages: string[], retryC
     }
 
     const content = result.choices[0].message.content;
+    console.log('AI响应内容:', content);
     
-    // 提取图片URL（从markdown格式中提取）
-    const imageUrlRegex = /!\[.*?\]\((https?:\/\/[^\)]+)\)/g;
+    // 提取图片URL（支持多种格式）
     const matches = [];
-    let match;
     
-    while ((match = imageUrlRegex.exec(content)) !== null) {
+    // 1. Markdown格式: ![image](url) 支持data:和http/https
+    const markdownRegex = /!\[.*?\]\(((?:data:image\/[^;]+;base64,|https?:\/\/)[^\)]+)\)/g;
+    let match;
+    while ((match = markdownRegex.exec(content)) !== null) {
       matches.push(match[1]);
+    }
+    
+    // 2. 直接data: URL格式
+    if (matches.length === 0) {
+      const dataUrlRegex = /(data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)/g;
+      while ((match = dataUrlRegex.exec(content)) !== null) {
+        matches.push(match[1]);
+      }
+    }
+    
+    // 3. 直接HTTP/HTTPS URL格式
+    if (matches.length === 0) {
+      const directUrlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+\.(png|jpg|jpeg|gif|webp))/gi;
+      while ((match = directUrlRegex.exec(content)) !== null) {
+        matches.push(match[1]);
+      }
+    }
+    
+    // 4. 任何以https://开头的URL
+    if (matches.length === 0) {
+      const anyUrlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
+      while ((match = anyUrlRegex.exec(content)) !== null) {
+        matches.push(match[1]);
+      }
     }
 
     if (matches.length === 0) {

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UserDAO } from '@/lib/dao/user-dao';
 import { z } from 'zod';
 
+// Note: Cannot use Edge Runtime due to bcrypt dependency
+// export const runtime = 'edge';
+
 const registerSchema = z.object({
   email: z.string().email('请输入有效的邮箱地址'),
   password: z.string().min(6, '密码至少6个字符'),

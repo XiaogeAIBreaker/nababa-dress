@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { testDatabaseConnection } from '@/lib/test-db';
 
+export const runtime = 'edge';
+
 export async function GET() {
   try {
     const isConnected = await testDatabaseConnection();

@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth';
 import { CreditsDAO } from '@/lib/dao/credits-dao';
 import { UserDAO } from '@/lib/dao/user-dao';
 
+// Note: Cannot use Edge Runtime due to UserDAO bcrypt dependency
+// export const runtime = 'edge';
+
 export async function POST(request: NextRequest) {
   try {
     // 检查用户是否登录

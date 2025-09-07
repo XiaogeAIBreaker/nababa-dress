@@ -5,6 +5,9 @@ import { UserDAO } from '@/lib/dao/user-dao';
 import { CreditsDAO } from '@/lib/dao/credits-dao';
 import { z } from 'zod';
 
+// Note: Cannot use Edge Runtime due to UserDAO bcrypt dependency
+// export const runtime = 'edge';
+
 const generateSchema = z.object({
   userImage: z.string().min(1, '请上传用户照片'),
   clothingImages: z.array(z.string()).min(1, '请至少上传一件服装图片'),

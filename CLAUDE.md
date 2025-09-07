@@ -47,6 +47,12 @@ curl http://localhost:3000/api/user/stats
 
 # Get user history
 curl "http://localhost:3000/api/user/history?type=checkin&limit=10"
+
+# Test AI generation (requires authentication)
+curl -X POST http://localhost:3000/api/generate \
+  -H "Content-Type: application/json" \
+  -H "Cookie: next-auth.session-token=your-session-token" \
+  -d '{"userImage":"base64-image-data","clothingImages":["base64-image-data"]}'
 ```
 
 ### Database Operations
@@ -64,7 +70,7 @@ curl -X POST http://localhost:3000/api/init-db
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, shadcn/ui
 - **Backend**: Next.js API Routes, NextAuth.js authentication
 - **Database**: Turso SQLite (libSQL) with edge computing capabilities
-- **AI Service**: APIcore AI (gemini-2.5-flash-image) for image generation
+- **AI Service**: APIcore AI (gemini-2.5-flash-image-preview) for image generation
 - **Deployment**: Cloudflare Pages with global CDN
 
 ### Core Business Logic
@@ -106,8 +112,9 @@ curl -X POST http://localhost:3000/api/init-db
 
 #### API Configuration
 - **Endpoint**: https://kg-api.cloud/v1/chat/completions  
-- **Model**: gemini-2.5-flash-image
+- **Model**: gemini-2.5-flash-image-preview
 - **Authentication**: Bearer token (stored in .env.local)
+- **Response Format**: AI returns Base64 data URLs in markdown format
 
 #### Prompt Engineering
 ```javascript
@@ -119,9 +126,32 @@ const generateTryOnPrompt = (clothingCount = 1) => {
 4. 生成真实感强的穿着效果，避免违和感
 5. 确保服装的材质、颜色和细节准确还原`;
 
-  return clothingCount > 1 ? 
-    basePrompt + `\n6. 请为这一个人物分别生成穿着每件不同服装的效果图` : 
-    basePrompt;
+  const multiplePrompt = clothingCount > 1 ? 
+    `\n6. 请为这一个人物分别生成穿着每件不同服装的效果图，每张图保持人物一致性` : '';
+    
+  return basePrompt + multiplePrompt;
+};
+
+// AI响应处理 - 支持Base64数据URL提取
+const extractImageUrls = (content) => {
+  const matches = [];
+  
+  // 1. Markdown格式: ![image](data:image/png;base64,...)
+  const markdownRegex = /!\[.*?\]\(((?:data:image\/[^;]+;base64,|https?:\/\/)[^\)]+)\)/g;
+  let match;
+  while ((match = markdownRegex.exec(content)) !== null) {
+    matches.push(match[1]);
+  }
+  
+  // 2. 直接Base64数据URL格式
+  if (matches.length === 0) {
+    const dataUrlRegex = /(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)/g;
+    while ((match = dataUrlRegex.exec(content)) !== null) {
+      matches.push(match[1]);
+    }
+  }
+  
+  return matches;
 };
 ```
 

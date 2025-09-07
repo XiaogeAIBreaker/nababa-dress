@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -316,10 +317,13 @@ export default function Generate() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               {generationResults.map((imageUrl, index) => (
                 <div key={index} className="relative">
-                  <img 
+                  <Image 
                     src={imageUrl} 
                     alt={`生成结果 ${index + 1}`}
+                    width={400}
+                    height={256}
                     className="w-full h-64 object-cover rounded-lg border"
+                    unoptimized={imageUrl.startsWith('data:')}
                   />
                   <div className="absolute top-2 right-2 bg-white bg-opacity-90 px-2 py-1 rounded text-xs font-medium">
                     {index + 1}/{generationResults.length}
@@ -374,10 +378,13 @@ export default function Generate() {
               <div className="space-y-4">
                 {userPhotoPreview ? (
                   <div className="relative">
-                    <img 
+                    <Image 
                       src={userPhotoPreview} 
                       alt="用户照片预览" 
+                      width={400}
+                      height={256}
                       className="w-full h-64 object-cover rounded-lg"
+                      unoptimized
                     />
                     <Button 
                       variant="destructive" 
@@ -440,10 +447,13 @@ export default function Generate() {
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     {clothingItems.map((item) => (
                       <div key={item.id} className="relative">
-                        <img 
+                        <Image 
                           src={item.preview} 
                           alt="服装预览" 
+                          width={200}
+                          height={128}
                           className="w-full h-32 object-cover rounded-lg"
+                          unoptimized
                         />
                         <Button 
                           variant="destructive" 

@@ -67,14 +67,42 @@ enum ClothingCategory {
 // 服装类别检测（使用AI视觉识别）
 const detectClothingCategory = async (clothingImage: string): Promise<ClothingCategory> => {
   try {
-    const categoryPrompt = `请分析这张图片中的主要物品，从以下选项中选择一个：
-A. 上衣 - T恤、衬衫、背心、夹克、毛衣等
-B. 下装 - 裤子、裙子、短裤等
-C. 内衣 - 文胸、内裤、连体内衣等
-D. 鞋子 - 运动鞋、高跟鞋、靴子、凉鞋等
-E. 配饰 - 帽子、包包、手表、眼镜、首饰等
+    const categoryPrompt = `分析这张图片中的服装/物品类型，只回答一个字母：
 
-直接回答：A/B/C/D/E`;
+A - 上衣类（T恤、衬衫、背心、夹克、毛衣、外套等）
+B - 下装类（裤子、裙子、短裤、长裤等）
+C - 内衣类（文胸、内裤、连体内衣等）
+D - 鞋子类（运动鞋、高跟鞋、靴子、凉鞋等）
+E - 配饰类（帽子、包包、手表、眼镜、首饰等）
+
+只回答：A 或 B 或 C 或 D 或 E`;
+
+    console.log('开始服装类别检测...');
+    
+    const requestBody = {
+      model: 'gemini-2.5-flash-image-preview',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: categoryPrompt },
+            {
+              type: 'image_url',
+              image_url: {
+                url: clothingImage.startsWith('data:') ? clothingImage : `data:image/jpeg;base64,${clothingImage}`
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0.1
+    };
+
+    console.log('发送分类识别请求:', {
+      model: requestBody.model,
+      messageCount: requestBody.messages.length,
+      hasImage: requestBody.messages[0].content.length > 1
+    });
 
     const response = await fetch(APICORE_AI_URL, {
       method: 'POST',
@@ -82,33 +110,44 @@ E. 配饰 - 帽子、包包、手表、眼镜、首饰等
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${APICORE_AI_KEY}`
       },
-      body: JSON.stringify({
-        model: 'gemini-2.5-flash-image-preview',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: categoryPrompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: clothingImage.startsWith('data:') ? clothingImage : `data:image/jpeg;base64,${clothingImage}`
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 10
-      }),
-      signal: AbortSignal.timeout(10000)
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(30000) // 增加到30秒
     });
 
+    console.log('API响应状态:', response.status, response.statusText);
+
     if (!response.ok) {
-      throw new Error('分类识别失败');
+      const errorText = await response.text();
+      console.error('API调用失败:', response.status, errorText);
+      throw new Error(`API调用失败: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
-    const answer = result.choices?.[0]?.message?.content?.trim().toUpperCase();
+    console.log('AI分类响应:', result);
+
+    const rawAnswer = result.choices?.[0]?.message?.content;
+    console.log('AI原始回答:', rawAnswer);
+
+    if (!rawAnswer) {
+      console.error('AI响应格式异常，无内容');
+      throw new Error('AI响应格式异常');
+    }
+
+    // 提取答案 - 支持多种格式
+    let answer = '';
+    const content = rawAnswer.trim().toUpperCase();
+    
+    // 直接匹配字母
+    if (['A', 'B', 'C', 'D', 'E'].includes(content)) {
+      answer = content;
+    }
+    // 从文本中提取字母
+    else {
+      const match = content.match(/[ABCDE]/);
+      answer = match ? match[0] : '';
+    }
+
+    console.log('提取的答案:', answer);
 
     // 根据AI回答映射到分类
     const categoryMap: Record<string, ClothingCategory> = {
@@ -119,7 +158,16 @@ E. 配饰 - 帽子、包包、手表、眼镜、首饰等
       'E': ClothingCategory.ACCESSORIES
     };
 
-    return categoryMap[answer] || ClothingCategory.TOPS; // 默认为上衣
+    const detectedCategory = categoryMap[answer];
+    console.log('映射的分类:', detectedCategory);
+
+    if (detectedCategory) {
+      return detectedCategory;
+    } else {
+      console.warn(`无法识别答案"${answer}"，使用默认分类`);
+      return ClothingCategory.TOPS;
+    }
+
   } catch (error) {
     console.error('服装分类检测失败:', error);
     return ClothingCategory.TOPS; // 默认为上衣

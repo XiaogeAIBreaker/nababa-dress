@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**小猫更衣** (Little Cat Dressing) is an AI-powered virtual try-on platform that allows users to upload personal photos and clothing images to generate realistic virtual fitting effects. The project uses a charge-based VIP system with Free, Plus, and Pro tiers designed to prevent credit farming abuse.
+**小猫更衣** (Little Cat Dressing) is an AI-powered universal virtual try-on platform that allows users to upload personal photos and various item images (clothing, shoes, accessories, etc.) to generate realistic virtual fitting effects. The project uses a charge-based VIP system with Free, Plus, and Pro tiers designed to prevent credit farming abuse.
 
 ## Development Commands
 
@@ -79,18 +79,20 @@ curl -X POST http://localhost:3000/api/init-db
 ### Core Business Logic
 
 #### VIP System
-- **Free Users**: Weekly checkin (6 credits), 2 credits per generation, 1 clothing item max
-- **Plus Users**: Daily checkin (6 credits), 2 credits per generation, 3 clothing items, WeChat upgrade
-- **Pro Users**: Daily checkin (6 credits), 2/20 credits per generation, 10 clothing items, purchase required
+- **Free Users**: Weekly checkin (6 credits), 2 credits per generation, 1 item max per generation
+- **Plus Users**: Daily checkin (6 credits), 2 credits per generation, 3 items max per generation, WeChat upgrade
+- **Pro Users**: Daily checkin (6 credits), 2/20 credits per generation, 10 items max per generation, purchase required
 - **Credit Packages**: ¥6-648 with bonus credits, automatic Pro upgrade
 - **Failed generations**: Credits are refunded automatically
 
 #### AI Generation Workflow
-1. Credit validation and user permission checks (2 credits single, 20 credits batch)
-2. Image processing (Base64 encoding)
-3. AI API call with retry mechanism (max 2 retries)
-4. Credit deduction on success, refund on failure
-5. Generation history logging with credit tracking
+1. **Item Category Detection**: AI automatically identifies the type of item (tops, bottoms, underwear, shoes, accessories)
+2. **Credit validation and user permission checks** (2 credits single, 20 credits batch)
+3. **Dynamic Prompt Generation**: Creates category-specific replacement instructions
+4. **Image processing** (Base64 encoding)
+5. **AI API call** with retry mechanism (max 2 retries)
+6. **Credit deduction** on success, refund on failure
+7. **Generation history logging** with credit tracking
 
 ### Database Architecture
 
@@ -150,20 +152,28 @@ curl -X POST http://localhost:3000/api/init-db
 - **Authentication**: Bearer token (stored in .env.local)
 - **Response Format**: AI returns Base64 data URLs in markdown format
 
-#### Prompt Engineering
+#### Prompt Engineering (Universal VTON System)
 ```javascript
-const generateTryOnPrompt = (clothingCount = 1) => {
-  const basePrompt = `请将用户照片中的人物换上新的服装，要求：
-1. 保持人物的面部特征、发型、体型和姿态完全不变
-2. 服装要自然贴合人物身形，考虑光影和褶皱效果  
-3. 保持原照片的背景、光线和整体氛围
-4. 生成真实感强的穿着效果，避免违和感
-5. 确保服装的材质、颜色和细节准确还原`;
+// Universal Virtual Try-On System
+const SYSTEM_PROMPT = `你是专业的"虚拟试衣（VTON）引擎"。任务：以【第一张】人物照为底图，用【后续图片】中的服装/配饰作参考，完成【物品替换 + 材质/颜色/细节还原】的图像编辑。
 
-  const multiplePrompt = clothingCount > 1 ? 
-    `\n6. 请为这一个人物分别生成穿着每件不同服装的效果图，每张图保持人物一致性` : '';
-    
-  return basePrompt + multiplePrompt;
+### 绝对规则（按优先级执行）
+1. **版型替换优先级（最高）**：以参考物品的版型/轮廓/形状为准，必须按目标物品的特征完全替换原有物品
+2. **区域重建要求**：移除原有物品，对被遮挡的身体区域进行合理重建（包括皮肤纹理、肌肉线条、身体轮廓等）
+3. **保持人物特征**：只保留人物的脸部/发型/体型/姿态和背景，完全替换指定的服装/配饰
+4. **材质颜色还原**：颜色、材质、图案要与参考物品精确一致
+5. **自然贴合效果**：替换物品需与人物姿态自然贴合，考虑光影、褶皱、投影等真实效果`;
+
+// Category-specific prompt generation
+const getCategoryPrompt = (category) => {
+  const prompts = {
+    '上衣': '请将图中人物的上衣替换为参考图片中的衣服',
+    '下装': '请将图中人物的裤子/裙子替换为参考图片中的下装',
+    '内衣': '请将图中人物的内衣替换为参考图片中的内衣',
+    '鞋子': '请将图中人物的鞋子替换为参考图片中的鞋子',
+    '配饰': '请为图中人物添加/替换参考图片中的配饰'
+  };
+  return prompts[category];
 };
 
 // AI响应处理 - 支持Base64数据URL提取
@@ -242,9 +252,9 @@ CRON_SECRET=<cron-secret-key>
 - Credit purchases automatically upgrade user to Pro tier
 
 ### User Permissions
-- Free users: Limited to 1 clothing item per generation, weekly checkin
-- Plus users: Up to 3 clothing items per generation, daily checkin, WeChat upgrade
-- Pro users: Batch generation up to 10 clothing items, daily checkin, purchase required
+- Free users: Limited to 1 item per generation, weekly checkin
+- Plus users: Up to 3 items per generation, daily checkin, WeChat upgrade
+- Pro users: Batch generation up to 10 items per generation, daily checkin, purchase required
 - All users: Single concurrent generation task limit
 
 ### Data Privacy
@@ -289,7 +299,7 @@ import { VipBadge, CreditsDisplay } from '@/components/user';
 
 function MyComponent({ userLevel }: { userLevel: UserLevel }) {
   const limits = getVipLimits(userLevel);
-  const requiredCredits = calculateRequiredCredits(userLevel, clothingCount);
+  const requiredCredits = calculateRequiredCredits(userLevel, itemCount);
   
   return (
     <div>

@@ -1,11 +1,10 @@
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/auth';
 import { CreditsDAO } from '@/lib/dao/credits-dao';
 import { z } from 'zod';
-
-// Note: Cannot use Edge Runtime due to getServerSession (NextAuth.js dependency)
-// export const runtime = 'edge';
 
 const purchaseSchema = z.object({
   packageName: z.string().min(1, '请选择积分包'),
@@ -15,7 +14,7 @@ const purchaseSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     // 检查用户是否登录
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({
         success: false,

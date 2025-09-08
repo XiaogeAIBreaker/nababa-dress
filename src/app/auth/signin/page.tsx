@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn, getSession } from 'next-auth/react';
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -30,8 +30,7 @@ export default function SignIn() {
       if (result?.error) {
         setError('邮箱或密码错误');
       } else {
-        // 刷新session并跳转
-        await getSession();
+        // 登录成功，直接跳转（session会自动更新）
         router.push('/dashboard');
       }
     } catch (err) {

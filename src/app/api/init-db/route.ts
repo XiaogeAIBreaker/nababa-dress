@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { initializeDatabase, checkDatabaseTables, migrateToVipSystem } from '@/lib/init-db';
 
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
 export async function POST() {
   try {

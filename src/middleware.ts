@@ -1,35 +1,29 @@
-import { withAuth } from 'next-auth/middleware';
+import { auth } from '@/auth';
 
-export default withAuth(
-  function middleware(req) {
-    // 这里可以添加额外的中间件逻辑
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        // 保护需要认证的路由
-        const { pathname } = req.nextUrl;
-        
-        // 公开路由，无需认证
-        const publicRoutes = [
-          '/',
-          '/auth/signin',
-          '/auth/signup',
-          '/api/auth/register',
-          '/api/test',
-          '/api/init-db'
-        ];
-        
-        if (publicRoutes.includes(pathname) || pathname.startsWith('/api/auth/')) {
-          return true;
-        }
-        
-        // 需要认证的路由，检查是否有有效token
-        return !!token;
-      },
-    },
+export default auth((req) => {
+  const { pathname } = req.nextUrl;
+  
+  // 公开路由，无需认证
+  const publicRoutes = [
+    '/',
+    '/auth/signin',
+    '/auth/signup',
+    '/api/auth/register',
+    '/api/test',
+    '/api/init-db'
+  ];
+  
+  if (publicRoutes.includes(pathname) || pathname.startsWith('/api/auth/')) {
+    return;
   }
-);
+  
+  // 需要认证的路由，检查是否有有效session
+  if (!req.auth) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/auth/signin';
+    return Response.redirect(url);
+  }
+});
 
 export const config = {
   matcher: [

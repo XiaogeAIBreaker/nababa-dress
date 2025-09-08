@@ -1,11 +1,10 @@
-import { NextAuthOptions } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import { UserDAO } from './dao/user-dao';
-import { CreditsDAO } from './dao/credits-dao';
+import NextAuth from 'next-auth';
+import Credentials from 'next-auth/providers/credentials';
+import { UserDAO } from './lib/dao/user-dao';
 
-export const authOptions: NextAuthOptions = {
+export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
-    CredentialsProvider({
+    Credentials({
       name: 'credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -17,23 +16,19 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // 查找用户
-          const user = await UserDAO.findUserByEmail(credentials.email);
+          const user = await UserDAO.findUserByEmail(credentials.email as string);
           if (!user) {
             return null;
           }
 
-          // 验证密码
           const isValidPassword = await UserDAO.verifyPassword(
-            credentials.password,
+            credentials.password as string,
             user.password_hash
           );
 
           if (!isValidPassword) {
             return null;
           }
-
-          // 登录时不自动发放积分，改由专门的签到接口处理
 
           return {
             id: user.id.toString(),
@@ -61,7 +56,6 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (token.sub) {
-        // 每次获取session时刷新用户信息
         try {
           const user = await UserDAO.findUserById(parseInt(token.sub));
           if (user) {
@@ -87,7 +81,7 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
-};
+});
 
 // 扩展NextAuth类型
 declare module 'next-auth' {
@@ -112,7 +106,7 @@ declare module 'next-auth' {
   }
 }
 
-declare module 'next-auth/jwt' {
+declare module '@auth/core/jwt' {
   interface JWT {
     userLevel?: 'free' | 'plus' | 'pro';
     credits?: number;

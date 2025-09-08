@@ -1,16 +1,15 @@
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/auth';
 import { CreditsDAO } from '@/lib/dao/credits-dao';
 import { UserDAO } from '@/lib/dao/user-dao';
-
-// Note: Cannot use Edge Runtime due to getServerSession (NextAuth.js dependency)
-// export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {
     // 检查用户是否登录
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({
         success: false,
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // 检查用户是否登录
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({
         success: false,

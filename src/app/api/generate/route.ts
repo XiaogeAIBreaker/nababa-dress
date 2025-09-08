@@ -1,12 +1,11 @@
+export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@/auth';
 import { UserDAO } from '@/lib/dao/user-dao';
 import { CreditsDAO } from '@/lib/dao/credits-dao';
 import { z } from 'zod';
-
-// Note: Cannot use Edge Runtime due to getServerSession (NextAuth.js dependency)
-// export const runtime = 'edge';
 
 const generateSchema = z.object({
   userImage: z.string().min(1, '请上传用户照片'),
@@ -157,7 +156,7 @@ async function callApicoreAI(userImage: string, clothingImages: string[], retryC
 export async function POST(request: NextRequest) {
   try {
     // 检查用户是否登录
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({
         success: false,

@@ -1,5 +1,5 @@
 import { dbClient } from '../db';
-import { hashPassword, verifyPassword, isBcryptHash, migrateBcryptHash } from '../crypto-edge';
+import { hashPassword, verifyPassword, isBcryptHash } from '../crypto-edge';
 
 export interface User {
   id: number;
@@ -109,14 +109,38 @@ export class UserDAO {
   static async verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
     // Support both old bcrypt hashes and new Web Crypto API hashes
     if (isBcryptHash(hashedPassword)) {
-      // For bcrypt hashes, we need to fallback to bcrypt (but this won't work in Edge Runtime)
-      // In production, these should be migrated during user login
-      console.warn('Bcrypt hash detected - should be migrated to Web Crypto API format');
-      // For now, return false to force password reset for old users
-      return false;
+      // For bcrypt hashes, we need to migrate them to Web Crypto API format
+      console.warn('Bcrypt hash detected - needs migration to Web Crypto API format');
+      return false; // Force password reset for old users
     }
     
     return await verifyPassword(plainPassword, hashedPassword);
+  }
+  
+  // 为旧用户更新密码到新格式
+  static async migrateUserPassword(userId: number, plainPassword: string): Promise<User> {
+    const newHashedPassword = await hashPassword(plainPassword);
+    
+    const result = await dbClient.execute({
+      sql: 'UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING *',
+      args: [newHashedPassword, userId]
+    });
+    
+    if (result.rows.length === 0) {
+      throw new Error('用户不存在');
+    }
+    
+    const user = result.rows[0] as any;
+    return {
+      id: user.id,
+      email: user.email,
+      password_hash: user.password_hash,
+      user_level: user.user_level,
+      credits: user.credits,
+      wechat_upgraded: Boolean(user.wechat_upgraded),
+      created_at: new Date(user.created_at),
+      updated_at: new Date(user.updated_at)
+    };
   }
   
   // 更新用户信息

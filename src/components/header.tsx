@@ -4,35 +4,14 @@ import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { VipBadge } from '@/components/user/vip-badge';
+import { CreditsDisplay } from '@/components/user/credits-display';
+import type { UserLevel } from '@/types';
 
 export function Header() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const getVipBadgeVariant = (userLevel?: string) => {
-    switch (userLevel) {
-      case 'pro':
-        return 'default';
-      case 'plus':
-        return 'info';
-      case 'free':
-      default:
-        return 'secondary';
-    }
-  };
-
-  const getVipBadgeText = (userLevel?: string) => {
-    switch (userLevel) {
-      case 'pro':
-        return 'Pro';
-      case 'plus':
-        return 'Plus';
-      case 'free':
-      default:
-        return 'Free';
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -71,17 +50,15 @@ export function Header() {
             {/* User Status */}
             <div className="flex items-center space-x-3">
               {/* Credits Display */}
-              <div className="flex items-center space-x-1 text-sm">
-                <span className="text-gray-600">积分:</span>
-                <span className="font-semibold text-green-600">
-                  {session.user.credits || 0}
-                </span>
-              </div>
+              <CreditsDisplay 
+                credits={session.user.credits || 0} 
+                size="sm"
+              />
 
               {/* VIP Badge */}
-              <Badge variant={getVipBadgeVariant(session.user.userLevel)}>
-                {getVipBadgeText(session.user.userLevel)}
-              </Badge>
+              <VipBadge 
+                userLevel={(session.user.userLevel as UserLevel) || 'free'}
+              />
 
               {/* User Email */}
               <span className="text-sm text-gray-600 hidden lg:inline">

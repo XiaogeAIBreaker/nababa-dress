@@ -10,6 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
+import { VipBadge, VipBenefitsCard } from '@/components/user/vip-badge';
+import { CreditsDisplay, CreditsWarning } from '@/components/user/credits-display';
+import { useUserData } from '@/hooks/useUserData';
+import { useErrorHandler } from '@/components/ui/toast';
+import { getVipLimits, calculateRequiredCredits } from '@/lib/vip-utils';
+import type { UserLevel, GenerationResult, ImageFile } from '@/types';
 
 interface ClothingItem {
   id: string;
@@ -17,21 +23,17 @@ interface ClothingItem {
   preview: string;
 }
 
-interface GenerationResult {
-  success: boolean;
-  message: string;
-  data?: {
-    images: string[];
-    creditsUsed: number;
-    generationType: string;
-    generatedCount: number;
-  };
-  error?: string;
-}
-
 export default function Generate() {
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const { 
+    user, 
+    isLoading, 
+    isAuthenticated, 
+    refreshSession,
+    credits 
+  } = useUserData();
+  const { handleError, handleApiResponse, toast } = useErrorHandler();
   const [userPhoto, setUserPhoto] = useState<File | null>(null);
   const [userPhotoPreview, setUserPhotoPreview] = useState<string>('');
   const [clothingItems, setClothingItems] = useState<ClothingItem[]>([]);
@@ -48,38 +50,9 @@ export default function Generate() {
     }
   }, [status, router]);
 
-  const getVipLimits = (userLevel?: string) => {
-    switch (userLevel) {
-      case 'pro':
-        return {
-          maxClothing: 10,
-          canBatch: true,
-          singleCost: 2,
-          batchCost: 20,
-          title: 'Pro用户'
-        };
-      case 'plus':
-        return {
-          maxClothing: 3,
-          canBatch: false,
-          singleCost: 2,
-          batchCost: 2,
-          title: 'Plus用户'
-        };
-      case 'free':
-      default:
-        return {
-          maxClothing: 1,
-          canBatch: false,
-          singleCost: 2,
-          batchCost: 2,
-          title: '免费用户'
-        };
-    }
-  };
-
-  const vipLimits = getVipLimits(session?.user?.userLevel);
-  const currentCredits = session?.user?.credits || 0;
+  const userLevel = (user?.userLevel || 'free') as UserLevel;
+  const vipLimits = getVipLimits(userLevel);
+  const currentCredits = credits;
 
   // 将文件转换为base64
   const fileToBase64 = (file: File): Promise<string> => {
@@ -108,8 +81,8 @@ export default function Generate() {
     if (!files) return;
 
     Array.from(files).forEach(file => {
-      if (clothingItems.length >= vipLimits.maxClothing) {
-        alert(`${vipLimits.title}最多可上传 ${vipLimits.maxClothing} 件服装`);
+      if (clothingItems.length >= vipLimits.maxClothingItems) {
+        toast.warning(`当前等级最多可上传 ${vipLimits.maxClothingItems} 件服装`);
         return;
       }
 
@@ -132,15 +105,7 @@ export default function Generate() {
   };
 
   const calculateCost = () => {
-    if (clothingItems.length === 0) return 0;
-    
-    // Pro用户批量生成
-    if (vipLimits.canBatch && clothingItems.length > 1) {
-      return vipLimits.batchCost;
-    }
-    
-    // 单次生成
-    return vipLimits.singleCost;
+    return calculateRequiredCredits(userLevel, clothingItems.length);
   };
 
   const canGenerate = () => {
@@ -175,7 +140,7 @@ export default function Generate() {
       const requestData = {
         userImage: userImageBase64,
         clothingImages: clothingImagesBase64,
-        generationType: clothingItems.length > 1 && vipLimits.canBatch ? 'batch' : 'single'
+        generationType: clothingItems.length > 1 && vipLimits.canBatchGenerate ? 'batch' : 'single'
       };
 
       setGenerationStatus('正在生成图片...');
@@ -200,8 +165,9 @@ export default function Generate() {
         setGenerationResults(result.data.images);
         setShowResults(true);
         
-        // 更新session中的积分（手动刷新）
-        await update();
+        // 刷新用户数据
+        await refreshSession();
+        toast.success(`生成成功！获得${result.data.images.length}张试穿图片`);
         
         setTimeout(() => {
           setGenerating(false);
@@ -214,22 +180,21 @@ export default function Generate() {
       }
 
     } catch (error) {
-      console.error('生成失败:', error);
+      handleError(error, '生成图片');
       setGenerationStatus('生成失败，积分已退还');
       
-      // 刷新session以更新积分
-      await update();
+      // 刷新用户数据以更新积分
+      await refreshSession();
       
       setTimeout(() => {
         setGenerating(false);
         setProgress(0);
         setGenerationStatus('');
-        alert(error instanceof Error ? error.message : '生成失败，请稍后重试');
       }, 2000);
     }
   };
 
-  if (status === 'loading') {
+  if (isLoading) {
     return (
       <main className="container mx-auto px-4 py-8">
         <div className="animate-pulse space-y-6">
@@ -243,7 +208,7 @@ export default function Generate() {
     );
   }
 
-  if (!session?.user) {
+  if (!isAuthenticated) {
     return null;
   }
 
@@ -264,24 +229,20 @@ export default function Generate() {
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
-              <Badge variant={session.user.userLevel === 'pro' ? 'default' : session.user.userLevel === 'plus' ? 'info' : 'secondary'}>
-                {vipLimits.title}
-              </Badge>
+              <VipBadge userLevel={userLevel} showDescription />
+              <CreditsDisplay credits={currentCredits} />
               <span className="text-sm text-gray-600">
-                当前积分: <span className="font-semibold text-green-600">{currentCredits}</span>
-              </span>
-              <span className="text-sm text-gray-600">
-                最多 {vipLimits.maxClothing} 件服装
+                最多 {vipLimits.maxClothingItems} 件服装
               </span>
             </div>
             
             <div className="flex items-center space-x-2 text-sm">
-              {session.user.userLevel === 'free' && (
+              {userLevel === 'free' && (
                 <Link href="/upgrade">
                   <Button variant="outline" size="sm">升级Plus</Button>
                 </Link>
               )}
-              {(session.user.userLevel === 'free' || session.user.userLevel === 'plus') && (
+              {(userLevel === 'free' || userLevel === 'plus') && (
                 <Link href="/purchase">
                   <Button variant="outline" size="sm">充值积分</Button>
                 </Link>
@@ -430,12 +391,12 @@ export default function Generate() {
                   <span>上传服装</span>
                 </div>
                 <Badge variant="outline" className="text-xs">
-                  {clothingItems.length}/{vipLimits.maxClothing}
+                  {clothingItems.length}/{vipLimits.maxClothingItems}
                 </Badge>
               </CardTitle>
               <CardDescription>
-                {vipLimits.title}最多可上传 {vipLimits.maxClothing} 件服装
-                {vipLimits.canBatch && clothingItems.length > 1 && (
+                最多可上传 {vipLimits.maxClothingItems} 件服装
+                {vipLimits.canBatchGenerate && clothingItems.length > 1 && (
                   <span className="text-green-600 ml-2">（将进行批量生成）</span>
                 )}
               </CardDescription>
@@ -470,7 +431,7 @@ export default function Generate() {
                 )}
 
                 {/* 上传按钮 */}
-                {clothingItems.length < vipLimits.maxClothing && (
+                {clothingItems.length < vipLimits.maxClothingItems && (
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
                     <div className="text-3xl mb-2">👗</div>
                     <p className="text-gray-600 mb-3">添加服装图片</p>
@@ -491,12 +452,12 @@ export default function Generate() {
                   </div>
                 )}
 
-                {clothingItems.length >= vipLimits.maxClothing && (
+                {clothingItems.length >= vipLimits.maxClothingItems && (
                   <div className="text-center p-4 bg-yellow-50 rounded-lg">
                     <p className="text-yellow-800 text-sm">
-                      已达到 {vipLimits.title} 的服装上传上限
+                      已达到当前等级的服装上传上限
                     </p>
-                    {session.user.userLevel !== 'pro' && (
+                    {userLevel !== 'pro' && (
                       <Link href="/purchase">
                         <Button variant="outline" size="sm" className="mt-2">
                           升级到Pro解锁更多
@@ -538,7 +499,7 @@ export default function Generate() {
                 <div className="flex justify-between text-sm">
                   <span>生成模式:</span>
                   <span className="font-medium">
-                    {vipLimits.canBatch && clothingItems.length > 1 ? '批量生成' : '单次生成'}
+                    {vipLimits.canBatchGenerate && clothingItems.length > 1 ? '批量生成' : '单次生成'}
                   </span>
                 </div>
                 <div className="flex justify-between font-semibold border-t pt-2">
@@ -560,7 +521,12 @@ export default function Generate() {
                     {!userPhoto && <p>• 请上传您的照片</p>}
                     {clothingItems.length === 0 && <p>• 请至少上传一件服装</p>}
                     {currentCredits < calculateCost() && (
-                      <p className="text-red-600">• 积分不足，需要 {calculateCost()} 积分</p>
+                      <div className="mt-2">
+                        <CreditsWarning 
+                          credits={currentCredits} 
+                          requiredCredits={calculateCost()}
+                        />
+                      </div>
                     )}
                   </div>
                 )}
@@ -589,23 +555,24 @@ export default function Generate() {
           </Card>
 
           {/* VIP特权说明 */}
+          <VipBenefitsCard userLevel={userLevel} />
+          
           <Card className="bg-blue-50">
             <CardHeader>
               <CardTitle className="text-blue-800">
-                {vipLimits.title}特权
+                生成费用
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-blue-700">
-              <p>• 单次生成消耗 {vipLimits.singleCost} 积分</p>
-              {vipLimits.canBatch ? (
-                <p>• 批量生成消耗 {vipLimits.batchCost} 积分（多件服装一次生成）</p>
+              <p>• 单次生成消耗 {vipLimits.generationCredits.single} 积分</p>
+              {vipLimits.canBatchGenerate ? (
+                <p>• 批量生成消耗 {vipLimits.generationCredits.batch} 积分（多件服装一次生成）</p>
               ) : (
-                <p>• 每件服装单独生成，消耗 {vipLimits.singleCost} 积分</p>
+                <p>• 每件服装单独生成，消耗 {vipLimits.generationCredits.single} 积分</p>
               )}
-              <p>• 最多可上传 {vipLimits.maxClothing} 件服装</p>
               <p>• 生成失败自动退还积分</p>
               
-              {session.user.userLevel === 'free' && (
+              {userLevel === 'free' && (
                 <div className="pt-2 border-t border-blue-200">
                   <p className="font-medium">升级Plus解锁:</p>
                   <p>• 最多3件服装，每日签到</p>
@@ -617,7 +584,7 @@ export default function Generate() {
                 </div>
               )}
               
-              {session.user.userLevel !== 'pro' && (
+              {userLevel !== 'pro' && (
                 <div className="pt-2 border-t border-blue-200">
                   <p className="font-medium">升级Pro解锁:</p>
                   <p>• 最多10件服装，批量生成，专属客服</p>

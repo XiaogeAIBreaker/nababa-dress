@@ -17,30 +17,176 @@ const generateSchema = z.object({
 const APICORE_AI_URL = 'https://kg-api.cloud/v1/chat/completions';
 const APICORE_AI_KEY = process.env.APICORE_AI_KEY || 'sk-yUPD9rfqfCrhxVzwmadPNlR3dtQ67PqWshJVgYihz8EWWU8D';
 
-// 换衣专业Prompt模板
-const generateTryOnPrompt = (clothingCount = 1) => {
-  const basePrompt = `请将用户照片中的人物换上新的服装，要求：
-1. 保持人物的面部特征、发型、体型和姿态完全不变
-2. 服装要自然贴合人物身形，考虑光影和褶皱效果  
-3. 保持原照片的背景、光线和整体氛围
-4. 生成真实感强的穿着效果，避免违和感
-5. 确保服装的材质、颜色和细节准确还原`;
+// 通用虚拟试衣系统提示词（固定部分）
+const SYSTEM_PROMPT = `图像生成：已启用。
 
-  const multiplePrompt = clothingCount > 1 ? 
-    `\n6. 请为这一个人物分别生成穿着每件不同服装的效果图，每张图保持人物一致性` : '';
-    
-  return basePrompt + multiplePrompt;
+你是专业的"虚拟试衣（VTON）引擎"。任务：以【第一张】人物照为底图，用【后续图片】中的服装/配饰作参考，完成【物品替换 + 材质/颜色/细节还原】的图像编辑。
+
+### 绝对规则（按优先级执行）
+1. **版型替换优先级（最高）**：以参考物品的版型/轮廓/形状为准，必须按目标物品的特征完全替换原有物品
+2. **区域重建要求**：移除原有物品，对被遮挡的身体区域进行合理重建（包括皮肤纹理、肌肉线条、身体轮廓等）
+3. **保持人物特征**：只保留人物的脸部/发型/体型/姿态和背景，完全替换指定的服装/配饰
+4. **材质颜色还原**：颜色、材质、图案要与参考物品精确一致
+5. **自然贴合效果**：替换物品需与人物姿态自然贴合，考虑光影、褶皱、投影等真实效果
+
+### 严格禁止行为
+- 严禁仅"改色/加字"或在原物品上覆盖贴图
+- 严禁保留原物品的任何特征或细节
+- 严禁改变人物脸型/发型/姿态/背景
+- 严禁添加参考图片中没有的新图案或标识
+
+### 核心行为规范
+- 必须直接生成替换后的图片，禁止询问任何问题
+- 禁止进入对话模式，直接处理提供的图片
+- 不要解释，不要询问，直接生成替换效果
+
+### 自检清单（输出前逐条核对）
+- [ ] 替换物品的版型/形状与参考图完全一致
+- [ ] 原有物品完全消失，相关身体区域自然重建
+- [ ] 颜色/材质/图案与参考图精确一致
+- [ ] 物品边缘与身体、头发、其他物品交界自然
+- [ ] 光影方向、强度与原图保持一致
+
+### 输出格式要求
+直接输出替换后的图片，使用以下格式之一：
+- ![替换效果](data:image/jpeg;base64,...)
+- ![替换效果](https://...)  
+- 或直接输出：data:image/jpeg;base64,...
+
+立即生成图片，不要添加任何解释文字。`;
+
+// 服装分类体系
+enum ClothingCategory {
+  TOPS = '上衣',
+  BOTTOMS = '下装',
+  UNDERWEAR = '内衣',
+  SHOES = '鞋子',
+  ACCESSORIES = '配饰'
+}
+
+// 服装类别检测（使用AI视觉识别）
+const detectClothingCategory = async (clothingImage: string): Promise<ClothingCategory> => {
+  try {
+    const categoryPrompt = `请分析这张图片中的主要物品，从以下选项中选择一个：
+A. 上衣 - T恤、衬衫、背心、夹克、毛衣等
+B. 下装 - 裤子、裙子、短裤等
+C. 内衣 - 文胸、内裤、连体内衣等
+D. 鞋子 - 运动鞋、高跟鞋、靴子、凉鞋等
+E. 配饰 - 帽子、包包、手表、眼镜、首饰等
+
+直接回答：A/B/C/D/E`;
+
+    const response = await fetch(APICORE_AI_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${APICORE_AI_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gemini-2.5-flash-image-preview',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: categoryPrompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: clothingImage.startsWith('data:') ? clothingImage : `data:image/jpeg;base64,${clothingImage}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 10
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      throw new Error('分类识别失败');
+    }
+
+    const result = await response.json();
+    const answer = result.choices?.[0]?.message?.content?.trim().toUpperCase();
+
+    // 根据AI回答映射到分类
+    const categoryMap: Record<string, ClothingCategory> = {
+      'A': ClothingCategory.TOPS,
+      'B': ClothingCategory.BOTTOMS,
+      'C': ClothingCategory.UNDERWEAR,
+      'D': ClothingCategory.SHOES,
+      'E': ClothingCategory.ACCESSORIES
+    };
+
+    return categoryMap[answer] || ClothingCategory.TOPS; // 默认为上衣
+  } catch (error) {
+    console.error('服装分类检测失败:', error);
+    return ClothingCategory.TOPS; // 默认为上衣
+  }
+};
+
+// 根据分类生成对应的提示词
+const getCategoryPrompt = (category: ClothingCategory) => {
+  const prompts: Record<ClothingCategory, string> = {
+    [ClothingCategory.TOPS]: '请将图中人物的上衣替换为参考图片中的衣服',
+    [ClothingCategory.BOTTOMS]: '请将图中人物的裤子/裙子替换为参考图片中的下装',
+    [ClothingCategory.UNDERWEAR]: '请将图中人物的内衣替换为参考图片中的内衣',
+    [ClothingCategory.SHOES]: '请将图中人物的鞋子替换为参考图片中的鞋子',
+    [ClothingCategory.ACCESSORIES]: '请为图中人物添加/替换参考图片中的配饰'
+  };
+  
+  return `${prompts[category]}。严格按照参考图片的款式、颜色、版型进行替换，确保自然贴合，保持人物原有的姿态和特征。`;
+};
+
+// 用户任务提示词（动态部分）
+const generateUserPrompt = (category: ClothingCategory, clothingCount = 1, retryCount = 0, lastFailureReason = '') => {
+  const categoryPrompt = getCategoryPrompt(category);
+  
+  let taskPrompt = `${categoryPrompt}
+
+### 任务目标
+- 底图：第一张人物照
+- 参考物品：第二张${clothingCount > 1 ? `到第${clothingCount + 1}张（分别生成每件的替换效果图）` : '图片'}
+- 版型优先：严格按照参考图的版型/形状/尺寸进行替换
+- 替换要求：必须以目标物品为准进行**完整替换**，禁止仅更改颜色或保留原有特征
+
+### 必须执行
+1. **移除原有物品**：完全移除原有物品的所有特征，不保留任何痕迹
+2. **重建相关区域**：对被原物品遮挡的身体区域进行自然重建（皮肤纹理、身体轮廓等）
+3. **贴合与光影**：替换物品与身体自然贴合，符合原图光源方向和阴影规律
+4. **细节一致**：颜色、材质、图案、纹理均与参考物品精确一致，不得新增额外元素
+5. **保持人物特征**：人物脸部/发型/体型/姿态和背景保持完全不变
+
+### 严格禁止
+- 禁止只改变颜色或在原物品上覆盖贴图
+- 禁止保留原物品的任何特征或细节
+- 禁止改变人物脸型/发型/姿态/背景
+- 禁止添加参考图中没有的新图案或标识`;
+
+  // 重试时添加失败原因说明
+  if (retryCount > 0 && lastFailureReason) {
+    taskPrompt += `\n\n### ⚠️ 重要提醒（第${retryCount + 1}次尝试）\n上一次输出不合格：${lastFailureReason}。请严格按照要求重新生成，确保替换效果完全正确。`;
+  }
+
+  taskPrompt += '\n\n请直接输出最终图片（data:image/... 或 https 链接），不要附加任何说明文字。';
+
+  return taskPrompt;
 };
 
 // 调用APIcore AI接口
-async function callApicoreAI(userImage: string, clothingImages: string[], retryCount = 0): Promise<string[]> {
-  const prompt = generateTryOnPrompt(clothingImages.length);
+async function callApicoreAI(userImage: string, clothingImages: string[], retryCount = 0, lastFailureReason = ''): Promise<string[]> {
+  // 检测第一张服装图片的类别
+  const detectedCategory = await detectClothingCategory(clothingImages[0]);
+  console.log(`检测到服装类别: ${detectedCategory}`);
   
-  // 构建消息内容
-  const messageContent: any[] = [
+  const userPrompt = generateUserPrompt(detectedCategory, clothingImages.length, retryCount, lastFailureReason);
+  
+  // 构建用户消息内容（包含任务描述和图片）
+  const userMessageContent: any[] = [
     {
       type: 'text',
-      text: prompt
+      text: userPrompt
     },
     {
       type: 'image_url',
@@ -50,9 +196,9 @@ async function callApicoreAI(userImage: string, clothingImages: string[], retryC
     }
   ];
 
-  // 添加服装图片
+  // 添加服装图片到用户消息
   clothingImages.forEach(clothingImage => {
-    messageContent.push({
+    userMessageContent.push({
       type: 'image_url',
       image_url: {
         url: clothingImage.startsWith('data:') ? clothingImage : `data:image/jpeg;base64,${clothingImage}`
@@ -64,8 +210,12 @@ async function callApicoreAI(userImage: string, clothingImages: string[], retryC
     model: 'gemini-2.5-flash-image-preview',
     messages: [
       {
+        role: 'system',
+        content: SYSTEM_PROMPT
+      },
+      {
         role: 'user',
-        content: messageContent
+        content: userMessageContent
       }
     ],
     max_tokens: 500
@@ -99,37 +249,54 @@ async function callApicoreAI(userImage: string, clothingImages: string[], retryC
     const content = result.choices[0].message.content;
     console.log('AI响应内容:', content);
     
-    // 提取图片URL（支持多种格式）
+    // 提取图片URL（支持多种格式，按优先级依次尝试）
     const matches = [];
-    
-    // 1. Markdown格式: ![image](url) 支持data:和http/https
-    const markdownRegex = /!\[.*?\]\(((?:data:image\/[^;]+;base64,|https?:\/\/)[^\)]+)\)/g;
     let match;
+    
+    // 1. Markdown格式: ![image](url) - 最标准的格式
+    const markdownRegex = /!\[.*?\]\(((?:data:image\/[^;]+;base64,|https?:\/\/)[^\)]+)\)/g;
     while ((match = markdownRegex.exec(content)) !== null) {
       matches.push(match[1]);
     }
     
-    // 2. 直接data: URL格式
+    // 2. 直接data URL格式: data:image/jpeg;base64,... 
     if (matches.length === 0) {
-      const dataUrlRegex = /(data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)/g;
+      const dataUrlRegex = /(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)/g;
       while ((match = dataUrlRegex.exec(content)) !== null) {
         matches.push(match[1]);
       }
     }
     
-    // 3. 直接HTTP/HTTPS URL格式
+    // 3. 常见图片URL格式（带文件扩展名）
     if (matches.length === 0) {
-      const directUrlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+\.(png|jpg|jpeg|gif|webp))/gi;
-      while ((match = directUrlRegex.exec(content)) !== null) {
+      const imageUrlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+\.(png|jpg|jpeg|gif|webp|bmp|svg))/gi;
+      while ((match = imageUrlRegex.exec(content)) !== null) {
         matches.push(match[1]);
       }
     }
     
-    // 4. 任何以https://开头的URL
+    // 4. 纯base64字符串（可能没有data:前缀）
     if (matches.length === 0) {
-      const anyUrlRegex = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
-      while ((match = anyUrlRegex.exec(content)) !== null) {
+      const base64Regex = /^([A-Za-z0-9+\/=]{100,})$/gm; // 至少100字符的base64
+      while ((match = base64Regex.exec(content)) !== null) {
+        // 添加data URL前缀
+        matches.push(`data:image/jpeg;base64,${match[1]}`);
+      }
+    }
+    
+    // 5. 任何HTTPS链接（较宽泛的匹配）
+    if (matches.length === 0) {
+      const anyHttpsRegex = /(https:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
+      while ((match = anyHttpsRegex.exec(content)) !== null) {
         matches.push(match[1]);
+      }
+    }
+    
+    // 6. 特殊情况：如果内容很短且像是一个URL
+    if (matches.length === 0 && content.length < 500) {
+      const cleanContent = content.trim();
+      if (cleanContent.startsWith('http') || cleanContent.startsWith('data:image')) {
+        matches.push(cleanContent);
       }
     }
 
@@ -143,10 +310,15 @@ async function callApicoreAI(userImage: string, clothingImages: string[], retryC
   } catch (error) {
     console.error(`AI生成失败 (重试次数: ${retryCount}):`, error);
     
-    // 重试机制：失败后立即重试最多2次
+    // 重试机制：失败后立即重试最多2次，传递具体失败原因
     if (retryCount < 2) {
-      console.log(`准备重试 ${retryCount + 1}/2`);
-      return await callApicoreAI(userImage, clothingImages, retryCount + 1);
+      const failureReason = error instanceof Error ? 
+        (error.message.includes('袖子') ? '保留了袖子/图案' : 
+         error.message.includes('颜色') ? '只改变了颜色而非版型' : 
+         '未按要求生成') : '未按要求生成';
+      
+      console.log(`准备重试 ${retryCount + 1}/2，失败原因: ${failureReason}`);
+      return await callApicoreAI(userImage, clothingImages, retryCount + 1, failureReason);
     }
     
     throw error;

@@ -60,7 +60,7 @@ E - 配饰类（帽子、包包、手表、眼镜、首饰等）
   private static readonly CATEGORY_PROMPTS: Record<ClothingCategory, string> = {
     [ClothingCategory.TOPS]: '请将图中人物的上衣替换为参考图片中的衣服',
     [ClothingCategory.BOTTOMS]: '请将图中人物的裤子/裙子替换为参考图片中的下装',
-    [ClothingCategory.UNDERWEAR]: '请将图中人物的内衣替换为参考图片中的内衣',
+    [ClothingCategory.UNDERWEAR]: '请将图中模特的内衣替换为参考图片中的内衣',
     [ClothingCategory.SHOES]: '请将图中人物的鞋子替换为参考图片中的鞋子',
     [ClothingCategory.ACCESSORIES]: '请为图中人物添加/替换参考图片中的配饰'
   };

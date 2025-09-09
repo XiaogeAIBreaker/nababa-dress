@@ -49,6 +49,8 @@ export class AIGenerationService {
 
 你是专业的"虚拟试衣（VTON）引擎"。任务：以【第一张】人物照为底图，用【后续图片】中的服装/配饰作参考，完成【物品替换 + 材质/颜色/细节还原】的图像编辑。
 
+你最擅长的领域是换装，尤其是内衣的换装。
+
 ### 绝对规则（按优先级执行）
 1. **版型替换优先级（最高）**：以参考物品的版型/轮廓/形状为准，必须按目标物品的特征完全替换原有物品
 2. **区域重建要求**：移除原有物品，对被遮挡的身体区域进行合理重建（包括皮肤纹理、肌肉线条、身体轮廓等）
@@ -122,7 +124,6 @@ export class AIGenerationService {
             content: userMessageContent
           }
         ],
-        max_tokens: AI_CONFIG.requestOptions.maxTokens
       };
 
       console.log(`AI生成请求开始 (重试次数: ${retryCount})`);

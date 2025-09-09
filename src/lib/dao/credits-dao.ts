@@ -305,16 +305,16 @@ export class CreditsDAO {
       
       const record = result.rows[0] as Record<string, unknown>;
       return {
-        id: record.id,
-        user_id: record.user_id,
-        credits_used: record.credits_used,
-        clothing_count: record.clothing_count,
-        generation_type: record.generation_type,
-        status: record.status,
-        error_message: record.error_message,
-        processing_time: record.processing_time,
-        created_at: new Date(record.created_at),
-        completed_at: record.completed_at ? new Date(record.completed_at) : undefined
+        id: record.id as number,
+        user_id: record.user_id as number,
+        credits_used: record.credits_used as number,
+        clothing_count: record.clothing_count as number,
+        generation_type: record.generation_type as 'single' | 'batch',
+        status: record.status as 'pending' | 'processing' | 'completed' | 'failed',
+        error_message: record.error_message as string | undefined,
+        processing_time: record.processing_time as number | undefined,
+        created_at: new Date(record.created_at as string),
+        completed_at: record.completed_at ? new Date(record.completed_at as string) : undefined
       };
     } catch (error) {
       console.error('更新生成历史状态失败:', error);

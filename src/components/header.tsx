@@ -1,115 +1,85 @@
 'use client';
 
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { VipBadge } from '@/components/user/vip-badge';
 import { CreditsDisplay } from '@/components/user/credits-display';
-import type { UserLevel } from '@/types';
+import { Drawer } from '@/components/ui/drawer';
+import { Sidebar } from '@/components/navigation/sidebar';
+import { useUserData } from '@/hooks/useUserData';
 
 export function Header() {
   const { data: session, status } = useSession();
-  const router = useRouter();
+  const { credits } = useUserData();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
 
-  const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push('/');
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
   };
 
   return (
-    <header className="border-b bg-white">
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/" className="text-xl font-bold text-gray-900">
-          小猫更衣
-        </Link>
+    <>
+      <header className="gradient-pink-soft border-b border-pink-200/50 safe-area-top">
+        <div className="px-4 py-3 flex items-center justify-between">
+          {/* 左侧：菜单按钮 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleSidebar}
+            className="touch-target hover:bg-white/50 text-pink-600"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </Button>
 
-        {/* Navigation & User Info */}
-        {status === 'loading' ? (
-          <div className="h-8 w-32 bg-gray-200 animate-pulse rounded"></div>
-        ) : session?.user ? (
-          <div className="flex items-center space-x-4">
-            {/* Navigation Links */}
-            <nav className="hidden md:flex items-center space-x-4">
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
-                控制台
-              </Link>
-              <Link href="/generate" className="text-gray-600 hover:text-gray-900">
-                AI试穿
-              </Link>
-              <Link href="/purchase" className="text-gray-600 hover:text-gray-900">
-                积分充值
-              </Link>
-              <Link href="/profile" className="text-gray-600 hover:text-gray-900">
-                个人中心
-              </Link>
-            </nav>
+          {/* 中央：Logo */}
+          <Link href="/" className="flex items-center space-x-2">
+            <motion.div 
+              className="text-2xl"
+              whileHover={{ 
+                scale: 1.2,
+                rotate: [0, -10, 10, 0],
+                transition: { duration: 0.3 }
+              }}
+              whileTap={{ scale: 0.9 }}
+            >
+              🐱
+            </motion.div>
+            <motion.span 
+              className="text-xl font-bold gradient-pink-glow bg-clip-text text-transparent"
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 300 }}
+            >
+              小猫更衣
+            </motion.span>
+          </Link>
 
-            {/* User Status */}
-            <div className="flex items-center space-x-3">
-              {/* Credits Display */}
-              <CreditsDisplay 
-                credits={session.user.credits || 0} 
-                size="sm"
-              />
-
-              {/* VIP Badge */}
-              <VipBadge 
-                userLevel={(session.user.userLevel as UserLevel) || 'free'}
-              />
-
-              {/* User Email */}
-              <span className="text-sm text-gray-600 hidden lg:inline">
-                {session.user.email}
-              </span>
-
-              {/* Sign Out Button */}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleSignOut}
-              >
-                退出
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center space-x-2">
+          {/* 右侧：积分显示或登录按钮 */}
+          {status === 'loading' ? (
+            <div className="w-20 h-8 bg-pink-100 animate-pulse rounded-xl"></div>
+          ) : session?.user ? (
+            <CreditsDisplay credits={credits} size="sm" />
+          ) : (
             <Link href="/auth/signin">
-              <Button variant="outline" size="sm">
+              <Button size="sm" className="cat-gradient-button touch-target text-sm">
                 登录
               </Button>
             </Link>
-            <Link href="/auth/signup">
-              <Button size="sm">
-                注册
-              </Button>
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {/* Mobile Navigation */}
-      {session?.user && (
-        <div className="md:hidden border-t bg-gray-50 px-4 py-2">
-          <nav className="flex justify-around">
-            <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 text-sm">
-              控制台
-            </Link>
-            <Link href="/generate" className="text-gray-600 hover:text-gray-900 text-sm">
-              AI试穿
-            </Link>
-            <Link href="/purchase" className="text-gray-600 hover:text-gray-900 text-sm">
-              充值
-            </Link>
-            <Link href="/profile" className="text-gray-600 hover:text-gray-900 text-sm">
-              个人
-            </Link>
-          </nav>
+          )}
         </div>
-      )}
-    </header>
+      </header>
+
+      {/* 侧边抽屉 */}
+      <Drawer isOpen={isSidebarOpen} onClose={closeSidebar} side="left">
+        <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
+      </Drawer>
+    </>
   );
 }

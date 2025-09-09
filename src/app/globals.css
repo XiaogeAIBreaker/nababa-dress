@@ -4,48 +4,67 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
+    /* 少女粉色系主题 */
+    --background: 330 100% 98%; /* #FFF0F5 LavenderBlush 温暖背景 */
+    --foreground: 320 25% 25%; /* #4D2D3A 暖棕粉文字 */
+    --card: 330 100% 99%; /* #FFFAFC 奶白卡片 */
+    --card-foreground: 320 25% 25%;
+    --popover: 330 100% 99%;
+    --popover-foreground: 320 25% 25%;
+    
+    /* 主要粉色系 */
+    --primary: 330 100% 71%; /* #FF69B4 HotPink 主粉色 */
+    --primary-foreground: 0 0% 100%; /* 白色文字 */
+    --secondary: 351 100% 86%; /* #FFB6C1 LightPink 辅助粉 */
+    --secondary-foreground: 320 25% 25%;
+    
+    /* 点缀和状态色 */
+    --accent: 348 100% 76%; /* #FF1493 DeepPink 点缀色 */
+    --accent-foreground: 0 0% 100%;
+    --muted: 330 50% 95%; /* #F5E6EA 柔和背景 */
+    --muted-foreground: 320 15% 45%; /* #7A6B71 柔和文字 */
+    
+    /* 边框和输入 */
+    --border: 330 30% 90%; /* #E8D4DA 粉色边框 */
+    --input: 330 30% 92%; /* #EBD9DF 输入框背景 */
+    --ring: 330 100% 71%; /* 焦点环：主粉色 */
+    
+    /* 状态色 */
+    --destructive: 0 84.2% 60.2%; /* 保持原红色 */
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    
+    /* 圆角：统一16px可爱风格 */
+    --radius: 1rem;
+    
+    /* 小猫更衣专用变量 */
+    --cat-pink: 330 100% 71%; /* #FF69B4 小猫主色 */
+    --cat-light-pink: 351 100% 86%; /* #FFB6C1 小猫辅助色 */
+    --cat-deep-pink: 348 100% 76%; /* #FF1493 小猫点缀色 */
+    --cat-warm-bg: 330 100% 98%; /* #FFF0F5 温暖背景 */
+    --cat-soft-shadow: 330 50% 85%; /* #E8C2CC 柔和阴影 */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* 暗色模式保持温馨粉色调 */
+    --background: 320 15% 8%; /* #1A141A 深色背景但带粉调 */
+    --foreground: 330 50% 90%; /* #F0DDE0 浅粉色文字 */
+    --card: 320 15% 10%;
+    --card-foreground: 330 50% 90%;
+    --popover: 320 15% 10%;
+    --popover-foreground: 330 50% 90%;
+    --primary: 330 100% 71%; /* 保持主粉色 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 320 20% 15%;
+    --secondary-foreground: 330 50% 90%;
+    --muted: 320 20% 15%;
+    --muted-foreground: 330 30% 70%;
+    --accent: 348 100% 76%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --destructive-foreground: 330 50% 90%;
+    --border: 320 20% 20%;
+    --input: 320 20% 18%;
+    --ring: 330 100% 71%;
   }
 }
 
@@ -55,5 +74,102 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* 移动端优化 */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+}
+
+@layer components {
+  /* 小猫更衣专用组件样式 */
+  .cat-gradient-bg {
+    @apply bg-gradient-to-br from-pink-50 to-rose-50;
+  }
+  
+  .cat-gradient-button {
+    @apply bg-gradient-to-r from-pink-400 to-pink-500 hover:from-pink-500 hover:to-pink-600 
+           text-white font-medium rounded-2xl transition-all duration-200 
+           shadow-lg shadow-pink-200/50 hover:shadow-xl hover:shadow-pink-300/50;
+  }
+  
+  .cat-card {
+    @apply bg-white/90 backdrop-blur-sm rounded-2xl border border-pink-100 
+           shadow-lg shadow-pink-100/50 hover:shadow-xl hover:shadow-pink-200/50
+           transition-all duration-200;
+  }
+  
+  .cat-input {
+    @apply bg-white/70 border-pink-200 rounded-2xl focus:border-pink-400 
+           focus:ring-2 focus:ring-pink-200 placeholder-pink-300
+           transition-all duration-200;
+  }
+  
+  .cat-text-muted {
+    @apply text-pink-400;
+  }
+  
+  .cat-shadow-soft {
+    box-shadow: 0 4px 20px rgba(255, 105, 180, 0.15);
+  }
+}
+
+@layer utilities {
+  /* 移动端安全区域 */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* 触摸优化 */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* 粉色渐变工具类 */
+  .gradient-pink-warm {
+    background: linear-gradient(135deg, #FFB6C1 0%, #FF69B4 100%);
+  }
+  
+  .gradient-pink-soft {
+    background: linear-gradient(135deg, #FFF0F5 0%, #FFE4E1 100%);
+  }
+  
+  .gradient-pink-glow {
+    background: linear-gradient(135deg, #FF1493 0%, #FF69B4 50%, #FFB6C1 100%);
+  }
+  
+  /* 小猫可爱动画 */
+  .cat-bounce {
+    animation: catBounce 0.6s ease-in-out;
+  }
+  
+  .cat-pulse {
+    animation: catPulse 2s infinite;
+  }
+  
+  .cat-float {
+    animation: catFloat 3s ease-in-out infinite;
+  }
+}
+
+@keyframes catBounce {
+  0%, 20%, 53%, 80%, 100% { transform: translate3d(0, 0, 0); }
+  40%, 43% { transform: translate3d(0, -8px, 0); }
+  70% { transform: translate3d(0, -4px, 0); }
+  90% { transform: translate3d(0, -2px, 0); }
+}
+
+@keyframes catPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+@keyframes catFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
 }

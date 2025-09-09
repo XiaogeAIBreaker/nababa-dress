@@ -56,8 +56,15 @@ export abstract class AppError extends Error {
   ) {
     super(message);
     this.name = this.constructor.name;
-    this.details = details;
     this.timestamp = new Date();
+    
+    if (details) {
+      Object.defineProperty(this, 'details', {
+        value: details,
+        writable: false,
+        enumerable: true
+      });
+    }
     
     Error.captureStackTrace(this, this.constructor);
   }
@@ -102,14 +109,18 @@ export class InsufficientCreditsError extends AppError {
     currentCredits: number
   ) {
     super(`积分不足，需要${requiredCredits}积分，当前余额${currentCredits}积分`);
-    this.details = [
-      {
-        code: 'INSUFFICIENT_CREDITS',
-        message: this.message,
-        field: 'credits',
-        value: { required: requiredCredits, current: currentCredits }
-      }
-    ];
+    Object.defineProperty(this, 'details', {
+      value: [
+        {
+          code: 'INSUFFICIENT_CREDITS',
+          message: this.message,
+          field: 'credits',
+          value: { required: requiredCredits, current: currentCredits }
+        }
+      ],
+      writable: false,
+      enumerable: true
+    });
   }
 }
 
@@ -123,14 +134,18 @@ export class GenerationLimitExceededError extends AppError {
 
   constructor(userLevel: string, limit: number, attempted: number) {
     super(`${userLevel}用户最多上传${limit}件服装图片，实际上传${attempted}件`);
-    this.details = [
-      {
-        code: 'GENERATION_LIMIT_EXCEEDED',
-        message: this.message,
-        field: 'clothingCount',
-        value: { userLevel, limit, attempted }
-      }
-    ];
+    Object.defineProperty(this, 'details', {
+      value: [
+        {
+          code: 'GENERATION_LIMIT_EXCEEDED',
+          message: this.message,
+          field: 'clothingCount',
+          value: { userLevel, limit, attempted }
+        }
+      ],
+      writable: false,
+      enumerable: true
+    });
   }
 }
 
@@ -144,13 +159,21 @@ export class AIAPIError extends AppError {
 
   constructor(message: string, apiResponse?: any) {
     super(`AI服务错误: ${message}`);
-    this.details = apiResponse ? [
+    const detailsValue = apiResponse ? [
       {
         code: 'AI_API_ERROR',
         message: this.message,
         value: apiResponse
       }
     ] : undefined;
+    
+    if (detailsValue) {
+      Object.defineProperty(this, 'details', {
+        value: detailsValue,
+        writable: false,
+        enumerable: true
+      });
+    }
   }
 }
 
@@ -164,7 +187,7 @@ export class DatabaseError extends AppError {
 
   constructor(message: string, operation?: string) {
     super(`数据库操作失败: ${message}`);
-    this.details = operation ? [
+    const detailsValue = operation ? [
       {
         code: 'DATABASE_ERROR',
         message: this.message,
@@ -172,6 +195,14 @@ export class DatabaseError extends AppError {
         value: operation
       }
     ] : undefined;
+    
+    if (detailsValue) {
+      Object.defineProperty(this, 'details', {
+        value: detailsValue,
+        writable: false,
+        enumerable: true
+      });
+    }
   }
 }
 
@@ -185,7 +216,13 @@ export class ValidationError extends AppError {
 
   constructor(message: string, validationDetails?: ErrorDetails[]) {
     super(message);
-    this.details = validationDetails;
+    if (validationDetails) {
+      Object.defineProperty(this, 'details', {
+        value: validationDetails,
+        writable: false,
+        enumerable: true
+      });
+    }
   }
 }
 

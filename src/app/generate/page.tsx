@@ -3,22 +3,27 @@
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Input } from '@/components/ui/input';
-import { VipBadge, VipBenefitsCard } from '@/components/user/vip-badge';
-import { CreditsDisplay, CreditsWarning } from '@/components/user/credits-display';
+import { ChatContainer } from '@/components/chat/chat-container';
+import { ChatMessage } from '@/components/chat/chat-message';
+import { GenerationProgress } from '@/components/chat/generation-progress';
+import { FileUpload } from '@/components/chat/file-upload';
+import { CatSpeechSystem } from '@/components/ai/cat-assistant';
+import { SuccessCelebration } from '@/components/animations/success-celebration';
 import { useUserData } from '@/hooks/useUserData';
 import { useErrorHandler } from '@/components/ui/toast';
+import { useIsClient } from '@/hooks/useIsClient';
 import { getVipLimits, calculateRequiredCredits } from '@/lib/vip-utils';
-import type { UserLevel, GenerationResult, ImageFile } from '@/types';
+import type { UserLevel, GenerationResult } from '@/types';
 
-interface ClothingItem {
+interface ChatStep {
   id: string;
+  type: 'greeting' | 'photo_upload' | 'photo_received' | 'clothing_upload' | 'clothing_received' | 'generating' | 'result' | 'continue';
+  timestamp: Date;
+}
+
+interface UploadedFile {
   file: File;
   preview: string;
 }
@@ -26,22 +31,26 @@ interface ClothingItem {
 export default function Generate() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const { 
-    user, 
-    isLoading, 
-    isAuthenticated, 
-    refreshSession,
-    credits 
-  } = useUserData();
-  const { handleError, handleApiResponse, toast } = useErrorHandler();
-  const [userPhoto, setUserPhoto] = useState<File | null>(null);
-  const [userPhotoPreview, setUserPhotoPreview] = useState<string>('');
-  const [clothingItems, setClothingItems] = useState<ClothingItem[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [generationStatus, setGenerationStatus] = useState('');
+  const { user, isLoading, isAuthenticated, refreshSession, credits } = useUserData();
+  const { handleError, toast } = useErrorHandler();
+  const isClient = useIsClient();
+  
+  // 聊天状态
+  const [chatSteps, setChatSteps] = useState<ChatStep[]>([]);
+  const [currentStep, setCurrentStep] = useState<ChatStep['type']>('greeting');
+  
+  // 上传文件状态
+  const [userPhoto, setUserPhoto] = useState<UploadedFile | null>(null);
+  const [clothingItems, setClothingItems] = useState<UploadedFile[]>([]);
+  
+  // 生成状态
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
   const [generationResults, setGenerationResults] = useState<string[]>([]);
-  const [showResults, setShowResults] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  const userLevel = (user?.userLevel || 'free') as UserLevel;
+  const vipLimits = getVipLimits(userLevel);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -50,11 +59,19 @@ export default function Generate() {
     }
   }, [status, router]);
 
-  const userLevel = (user?.userLevel || 'free') as UserLevel;
-  const vipLimits = getVipLimits(userLevel);
-  const currentCredits = credits;
+  // 初始化聊天 - 显示问候语
+  useEffect(() => {
+    if (isAuthenticated && chatSteps.length === 0) {
+      const greeting: ChatStep = {
+        id: 'greeting',
+        type: 'greeting',
+        timestamp: new Date()
+      };
+      setChatSteps([greeting]);
+    }
+  }, [isAuthenticated, chatSteps.length]);
 
-  // 将文件转换为base64
+  // 文件转换工具
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -64,87 +81,112 @@ export default function Generate() {
     });
   };
 
-  const handleUserPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUserPhoto(file);
+  const createFilePreview = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setUserPhotoPreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleClothingUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach(file => {
-      if (clothingItems.length >= vipLimits.maxClothingItems) {
-        toast.warning(`当前等级最多可上传 ${vipLimits.maxClothingItems} 件服装`);
-        return;
-      }
-
-      const id = Math.random().toString(36).substr(2, 9);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const newItem: ClothingItem = {
-          id,
-          file,
-          preview: e.target?.result as string
-        };
-        setClothingItems(prev => [...prev, newItem]);
-      };
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   };
 
-  const removeClothingItem = (id: string) => {
-    setClothingItems(prev => prev.filter(item => item.id !== id));
+  // 步骤管理
+  const addChatStep = (type: ChatStep['type']) => {
+    const newStep: ChatStep = {
+      id: `${type}_${Date.now()}`,
+      type,
+      timestamp: new Date()
+    };
+    setChatSteps(prev => [...prev, newStep]);
+    setCurrentStep(type);
   };
 
-  const calculateCost = () => {
-    return calculateRequiredCredits(userLevel, clothingItems.length);
-  };
-
-  const canGenerate = () => {
-    if (!userPhoto || clothingItems.length === 0) return false;
-    if (currentCredits < calculateCost()) return false;
-    return true;
-  };
-
-  const handleGenerate = async () => {
-    if (!canGenerate() || !userPhoto || clothingItems.length === 0) return;
-
-    setGenerating(true);
-    setProgress(0);
-    setGenerationStatus('正在上传图片...');
-    setShowResults(false);
-    setGenerationResults([]);
+  // 用户照片上传处理
+  const handleUserPhotoUpload = async (files: File[]) => {
+    const file = files[0];
+    if (!file) return;
 
     try {
-      // 转换图片为base64
-      setGenerationStatus('正在处理图片...');
-      setProgress(20);
+      const preview = await createFilePreview(file);
+      setUserPhoto({ file, preview });
       
-      const userImageBase64 = await fileToBase64(userPhoto);
+      // 添加用户上传照片的聊天记录
+      addChatStep('photo_received');
+      
+      // 延迟一下，然后显示AI回应
+      setTimeout(() => {
+        addChatStep('clothing_upload');
+      }, 1000);
+    } catch (error) {
+      handleError(error, '照片处理');
+    }
+  };
+
+  // 服装上传处理
+  const handleClothingUpload = async (files: File[]) => {
+    if (clothingItems.length >= vipLimits.maxClothingItems) {
+      toast.warning(`当前等级最多可上传 ${vipLimits.maxClothingItems} 件服装`);
+      return;
+    }
+
+    const newClothingItems: UploadedFile[] = [];
+    
+    for (const file of files.slice(0, vipLimits.maxClothingItems - clothingItems.length)) {
+      try {
+        const preview = await createFilePreview(file);
+        newClothingItems.push({ file, preview });
+      } catch (error) {
+        handleError(error, '服装图片处理');
+      }
+    }
+
+    if (newClothingItems.length > 0) {
+      setClothingItems(prev => [...prev, ...newClothingItems]);
+      
+      // 添加用户上传服装的聊天记录
+      addChatStep('clothing_received');
+      
+      // 延迟一下，然后可以开始生成
+      setTimeout(() => {
+        // 这里可以直接显示生成按钮或者询问是否开始生成
+      }, 1000);
+    }
+  };
+
+  // AI生成处理
+  const handleGenerate = async () => {
+    if (!userPhoto || clothingItems.length === 0) {
+      toast.error('请先上传照片和服装图片');
+      return;
+    }
+
+    const requiredCredits = calculateRequiredCredits(userLevel, clothingItems.length);
+    if (credits < requiredCredits) {
+      toast.error(`积分不足！需要 ${requiredCredits} 积分，当前只有 ${credits} 积分`);
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationProgress(0);
+    addChatStep('generating');
+
+    try {
+      // 模拟进度更新
+      const progressTimer = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressTimer);
+            return 95;
+          }
+          return prev + Math.random() * 15;
+        });
+      }, 800);
+
+      // 转换图片为base64
+      const userImageBase64 = await fileToBase64(userPhoto.file);
       const clothingImagesBase64 = await Promise.all(
         clothingItems.map(item => fileToBase64(item.file))
       );
-
-      setGenerationStatus('正在分析照片...');
-      setProgress(40);
-
-      // 准备请求数据
-      const requestData = {
-        userImage: userImageBase64,
-        clothingImages: clothingImagesBase64,
-        generationType: clothingItems.length > 1 && vipLimits.canBatchGenerate ? 'batch' : 'single'
-      };
-
-      setGenerationStatus('正在生成图片...');
-      setProgress(60);
 
       // 调用生成API
       const response = await fetch('/api/generate', {
@@ -152,467 +194,298 @@ export default function Generate() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestData),
+        body: JSON.stringify({
+          userImage: userImageBase64,
+          clothingImages: clothingImagesBase64,
+          generationType: clothingItems.length > 1 && vipLimits.canBatchGenerate ? 'batch' : 'single'
+        }),
       });
 
       const result: GenerationResult = await response.json();
-
-      setProgress(100);
-      setGenerationStatus('生成完成');
+      clearInterval(progressTimer);
+      setGenerationProgress(100);
 
       if (result.success && result.data) {
-        // 生成成功
         setGenerationResults(result.data.images);
-        setShowResults(true);
-        
-        // 刷新用户数据
         await refreshSession();
-        toast.success(`生成成功！获得${result.data.images.length}张试穿图片`);
         
         setTimeout(() => {
-          setGenerating(false);
-          setProgress(0);
-          setGenerationStatus('');
-        }, 1500);
+          setIsGenerating(false);
+          setShowCelebration(true);
+          addChatStep('result');
+        }, 1000);
       } else {
-        // 生成失败
         throw new Error(result.message || '生成失败');
       }
 
     } catch (error) {
-      handleError(error, '生成图片');
-      setGenerationStatus('生成失败，积分已退还');
-      
-      // 刷新用户数据以更新积分
-      await refreshSession();
-      
-      setTimeout(() => {
-        setGenerating(false);
-        setProgress(0);
-        setGenerationStatus('');
-      }, 2000);
+      setIsGenerating(false);
+      handleError(error, 'AI生成');
+      await refreshSession(); // 刷新以更新退还的积分
     }
   };
 
+  const startNewGeneration = () => {
+    setUserPhoto(null);
+    setClothingItems([]);
+    setGenerationResults([]);
+    setChatSteps([]);
+    setCurrentStep('greeting');
+    
+    // 重新开始对话
+    setTimeout(() => {
+      const greeting: ChatStep = {
+        id: 'greeting_new',
+        type: 'greeting', 
+        timestamp: new Date()
+      };
+      setChatSteps([greeting]);
+    }, 500);
+  };
+
+  // 渲染加载状态
   if (isLoading) {
     return (
-      <main className="container mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-48"></div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-96 bg-gray-200 rounded"></div>
-            <div className="h-96 bg-gray-200 rounded"></div>
-          </div>
+      <div className="h-full flex items-center justify-center">
+        <div className="cat-card p-8 text-center">
+          <div className="text-4xl mb-4 cat-pulse">🐱</div>
+          <p className="cat-text-muted">正在加载小猫助手...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
+  // 未登录重定向
   if (!isAuthenticated) {
     return null;
   }
 
-  return (
-    <main className="container mx-auto px-4 py-8">
-      {/* 页面标题 */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          AI虚拟试穿
-        </h1>
-        <p className="text-gray-600">
-          上传您的照片和服装，AI为您生成逼真的试穿效果
-        </p>
-      </div>
+  // 获取当前需要显示的内容
+  const getCurrentStepContent = () => {
+    if (currentStep === 'greeting' && !userPhoto) {
+      return (
+        <div className="px-4">
+          <FileUpload
+            type="photo"
+            onFilesSelected={handleUserPhotoUpload}
+            disabled={isGenerating}
+          />
+        </div>
+      );
+    }
 
-      {/* 用户状态 */}
-      <Card className="mb-8 bg-blue-50">
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center space-x-4">
-              <VipBadge userLevel={userLevel} showDescription />
-              <CreditsDisplay credits={currentCredits} />
-              <span className="text-sm text-gray-600">
-                最多 {vipLimits.maxClothingItems} 件服装
-              </span>
+    if (currentStep === 'clothing_upload' && userPhoto && clothingItems.length === 0) {
+      return (
+        <div className="px-4">
+          <FileUpload
+            type="clothing"
+            multiple={vipLimits.maxClothingItems > 1}
+            maxFiles={vipLimits.maxClothingItems}
+            onFilesSelected={handleClothingUpload}
+            disabled={isGenerating}
+          />
+        </div>
+      );
+    }
+
+    if (userPhoto && clothingItems.length > 0 && !isGenerating && generationResults.length === 0) {
+      const requiredCredits = calculateRequiredCredits(userLevel, clothingItems.length);
+      const canGenerate = credits >= requiredCredits;
+      
+      return (
+        <div className="px-4">
+          <div className="cat-card p-4">
+            <h3 className="font-semibold mb-3">✨ 准备生成专属试穿效果</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+              <div className="flex justify-between">
+                <span>消耗积分:</span>
+                <span className="font-semibold text-pink-600">{requiredCredits}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>当前积分:</span>
+                <span className={credits >= requiredCredits ? 'text-green-600' : 'text-red-600'}>
+                  {credits}
+                </span>
+              </div>
             </div>
             
-            <div className="flex items-center space-x-2 text-sm">
-              {userLevel === 'free' && (
-                <Link href="/upgrade">
-                  <Button variant="outline" size="sm">升级Plus</Button>
-                </Link>
-              )}
-              {(userLevel === 'free' || userLevel === 'plus') && (
-                <Link href="/purchase">
-                  <Button variant="outline" size="sm">充值积分</Button>
-                </Link>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {generating && (
-        <Card className="mb-8 bg-green-50">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <h3 className="font-medium text-green-800">{generationStatus}</h3>
-              <Progress value={progress} className="w-full h-3" />
-              <p className="text-sm text-green-600">
-                请耐心等待，生成时间约30-60秒
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {showResults && generationResults.length > 0 && (
-        <Card className="mb-8 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="text-blue-800">🎉 生成完成！</CardTitle>
-            <CardDescription>
-              成功生成 {generationResults.length} 张试穿图片
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-              {generationResults.map((imageUrl, index) => (
-                <div key={index} className="relative">
-                  <Image 
-                    src={imageUrl} 
-                    alt={`生成结果 ${index + 1}`}
-                    width={400}
-                    height={256}
-                    className="w-full h-64 object-cover rounded-lg border"
-                    unoptimized={imageUrl.startsWith('data:')}
-                  />
-                  <div className="absolute top-2 right-2 bg-white bg-opacity-90 px-2 py-1 rounded text-xs font-medium">
-                    {index + 1}/{generationResults.length}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {generationResults.map((imageUrl, index) => (
-                  <a
-                    key={index}
-                    href={imageUrl}
-                    download={`ai-tryon-result-${index + 1}.jpg`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 min-w-0"
-                  >
-                    <Button variant="outline" size="sm" className="w-full">
-                      下载图片 {index + 1}
-                    </Button>
-                  </a>
-                ))}
-              </div>
+            {canGenerate ? (
               <Button 
-                onClick={() => setShowResults(false)}
-                variant="outline" 
-                className="w-full"
+                onClick={handleGenerate}
+                className="cat-gradient-button w-full touch-target"
               >
-                生成更多图片
+                🎨 开始生成 ({requiredCredits} 积分)
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* 上传区域 */}
-        <div className="space-y-6">
-          {/* 用户照片上传 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <span>📷</span>
-                <span>上传您的照片</span>
-              </CardTitle>
-              <CardDescription>
-                建议上传正面清晰的全身照片，效果更佳
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {userPhotoPreview ? (
-                  <div className="relative">
-                    <Image 
-                      src={userPhotoPreview} 
-                      alt="用户照片预览" 
-                      width={400}
-                      height={256}
-                      className="w-full h-64 object-cover rounded-lg"
-                      unoptimized
-                    />
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      className="absolute top-2 right-2"
-                      onClick={() => {
-                        setUserPhoto(null);
-                        setUserPhotoPreview('');
-                      }}
-                    >
-                      删除
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
-                    <div className="text-4xl mb-4">📷</div>
-                    <p className="text-gray-600 mb-4">点击或拖拽上传您的照片</p>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleUserPhotoUpload}
-                      className="hidden"
-                      id="userPhoto"
-                      disabled={generating}
-                    />
-                    <Button variant="outline" asChild disabled={generating}>
-                      <label htmlFor="userPhoto" className="cursor-pointer">
-                        选择照片
-                      </label>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 服装上传 */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span>👗</span>
-                  <span>上传服装</span>
-                </div>
-                <Badge variant="outline" className="text-xs">
-                  {clothingItems.length}/{vipLimits.maxClothingItems}
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                最多可上传 {vipLimits.maxClothingItems} 件服装
-                {vipLimits.canBatchGenerate && clothingItems.length > 1 && (
-                  <span className="text-green-600 ml-2">（将进行批量生成）</span>
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* 服装预览网格 */}
-                {clothingItems.length > 0 && (
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    {clothingItems.map((item) => (
-                      <div key={item.id} className="relative">
-                        <Image 
-                          src={item.preview} 
-                          alt="服装预览" 
-                          width={200}
-                          height={128}
-                          className="w-full h-32 object-cover rounded-lg"
-                          unoptimized
-                        />
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          className="absolute top-1 right-1 h-6 w-6 p-0"
-                          onClick={() => removeClothingItem(item.id)}
-                          disabled={generating}
-                        >
-                          ×
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* 上传按钮 */}
-                {clothingItems.length < vipLimits.maxClothingItems && (
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-                    <div className="text-3xl mb-2">👗</div>
-                    <p className="text-gray-600 mb-3">添加服装图片</p>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleClothingUpload}
-                      className="hidden"
-                      id="clothingUpload"
-                      disabled={generating}
-                    />
-                    <Button variant="outline" asChild disabled={generating}>
-                      <label htmlFor="clothingUpload" className="cursor-pointer">
-                        选择服装
-                      </label>
-                    </Button>
-                  </div>
-                )}
-
-                {clothingItems.length >= vipLimits.maxClothingItems && (
-                  <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                    <p className="text-yellow-800 text-sm">
-                      已达到当前等级的服装上传上限
-                    </p>
-                    {userLevel !== 'pro' && (
-                      <Link href="/purchase">
-                        <Button variant="outline" size="sm" className="mt-2">
-                          升级到Pro解锁更多
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 生成控制 */}
-        <div className="space-y-6">
-          {/* 生成预览 */}
-          <Card>
-            <CardHeader>
-              <CardTitle>生成预览</CardTitle>
-              <CardDescription>
-                确认信息无误后开始生成
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* 成本计算 */}
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>用户照片:</span>
-                  <span className={userPhoto ? 'text-green-600' : 'text-gray-400'}>
-                    {userPhoto ? '✓ 已上传' : '未上传'}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>服装数量:</span>
-                  <span className={clothingItems.length > 0 ? 'text-green-600' : 'text-gray-400'}>
-                    {clothingItems.length} 件
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>生成模式:</span>
-                  <span className="font-medium">
-                    {vipLimits.canBatchGenerate && clothingItems.length > 1 ? '批量生成' : '单次生成'}
-                  </span>
-                </div>
-                <div className="flex justify-between font-semibold border-t pt-2">
-                  <span>消耗积分:</span>
-                  <span className="text-green-600">{calculateCost()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>剩余积分:</span>
-                  <span className={currentCredits >= calculateCost() ? 'text-green-600' : 'text-red-600'}>
-                    {currentCredits - calculateCost()}
-                  </span>
-                </div>
-              </div>
-
-              {/* 生成按钮 */}
+            ) : (
               <div className="space-y-3">
-                {!canGenerate() && (
-                  <div className="text-sm text-gray-600 space-y-1">
-                    {!userPhoto && <p>• 请上传您的照片</p>}
-                    {clothingItems.length === 0 && <p>• 请至少上传一件服装</p>}
-                    {currentCredits < calculateCost() && (
-                      <div className="mt-2">
-                        <CreditsWarning 
-                          credits={currentCredits} 
-                          requiredCredits={calculateCost()}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
+                <p className="text-red-600 text-sm text-center">
+                  {CatSpeechSystem.getInsufficientCreditsMessage(requiredCredits, credits)}
+                </p>
                 <Button 
-                  className="w-full h-12 text-lg"
-                  onClick={handleGenerate}
-                  disabled={!canGenerate() || generating}
+                  onClick={() => {
+                    if (isClient && typeof window !== 'undefined') {
+                      window.open('/purchase', '_blank');
+                    } else {
+                      // 降级方案：使用路由跳转
+                      router.push('/purchase');
+                    }
+                  }}
+                  className="cat-gradient-button w-full touch-target"
                 >
-                  {generating ? (
-                    <span>{generationStatus}</span>
-                  ) : (
-                    <span>开始生成 ({calculateCost()} 积分)</span>
-                  )}
+                  💎 去充值积分
                 </Button>
-
-                {currentCredits < calculateCost() && (
-                  <Link href="/purchase">
-                    <Button variant="outline" className="w-full">
-                      充值积分
-                    </Button>
-                  </Link>
-                )}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* VIP特权说明 */}
-          <VipBenefitsCard userLevel={userLevel} />
-          
-          <Card className="bg-blue-50">
-            <CardHeader>
-              <CardTitle className="text-blue-800">
-                生成费用
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-blue-700">
-              <p>• 单次生成消耗 {vipLimits.generationCredits.single} 积分</p>
-              {vipLimits.canBatchGenerate ? (
-                <p>• 批量生成消耗 {vipLimits.generationCredits.batch} 积分（多件服装一次生成）</p>
-              ) : (
-                <p>• 每件服装单独生成，消耗 {vipLimits.generationCredits.single} 积分</p>
-              )}
-              <p>• 生成失败自动退还积分</p>
-              
-              {userLevel === 'free' && (
-                <div className="pt-2 border-t border-blue-200">
-                  <p className="font-medium">升级Plus解锁:</p>
-                  <p>• 最多3件服装，每日签到</p>
-                  <Link href="/upgrade">
-                    <Button variant="outline" size="sm" className="mt-2">
-                      免费升级Plus
-                    </Button>
-                  </Link>
-                </div>
-              )}
-              
-              {userLevel !== 'pro' && (
-                <div className="pt-2 border-t border-blue-200">
-                  <p className="font-medium">升级Pro解锁:</p>
-                  <p>• 最多10件服装，批量生成，专属客服</p>
-                  <Link href="/purchase">
-                    <Button variant="outline" size="sm" className="mt-2">
-                      充值升级Pro
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </div>
         </div>
-      </div>
+      );
+    }
 
-      {/* 使用提示 */}
-      <Card className="mt-8 bg-yellow-50">
-        <CardHeader>
-          <CardTitle className="text-yellow-800">使用技巧</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-yellow-700 space-y-2">
-          <p>• 上传正面、清晰、光线充足的全身照效果最佳</p>
-          <p>• 服装图片建议使用平铺或模特展示图</p>
-          <p>• 避免复杂背景，纯色背景效果更好</p>
-          <p>• 每次生成大约需要30-60秒，请耐心等待</p>
-          <p>• 如果生成失败，积分会自动退还</p>
-        </CardContent>
-      </Card>
-    </main>
+    return null;
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-transparent">
+      {/* 聊天消息区域 */}
+      <ChatContainer className="flex-1">
+        {chatSteps.map((step) => {
+          switch (step.type) {
+            case 'greeting':
+              return (
+                <ChatMessage
+                  key={step.id}
+                  type="ai"
+                  content={CatSpeechSystem.getGreeting(session?.user?.name || undefined)}
+                  userLevel={userLevel}
+                  timestamp={step.timestamp}
+                />
+              );
+
+            case 'photo_received':
+              if (!userPhoto) return null;
+              return (
+                <div key={step.id}>
+                  <ChatMessage
+                    type="user"
+                    images={[userPhoto.preview]}
+                    timestamp={step.timestamp}
+                  />
+                  <ChatMessage
+                    type="ai"
+                    content={CatSpeechSystem.getPhotoCompliment()}
+                    userLevel={userLevel}
+                    timestamp={new Date(step.timestamp.getTime() + 1000)}
+                  />
+                </div>
+              );
+
+            case 'clothing_received':
+              return (
+                <div key={step.id}>
+                  <ChatMessage
+                    type="user"
+                    images={clothingItems.map(item => item.preview)}
+                    timestamp={step.timestamp}
+                  />
+                  <ChatMessage
+                    type="ai"
+                    content={CatSpeechSystem.getClothingApproval('服装')}
+                    userLevel={userLevel}
+                    timestamp={new Date(step.timestamp.getTime() + 1000)}
+                  />
+                </div>
+              );
+
+            case 'generating':
+              return (
+                <GenerationProgress
+                  key={step.id}
+                  isGenerating={isGenerating}
+                  progress={generationProgress}
+                  onComplete={() => {}}
+                />
+              );
+
+            case 'result':
+              return (
+                <div key={step.id}>
+                  <ChatMessage
+                    type="ai"
+                    content={CatSpeechSystem.getSuccessMessage()}
+                    userLevel={userLevel}
+                    timestamp={step.timestamp}
+                  />
+                  {generationResults.length > 0 && (
+                    <div className="mx-4 mb-6">
+                      <div className="cat-card p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          {generationResults.map((imageUrl, index) => (
+                            <div key={index} className="relative">
+                              <Image 
+                                src={imageUrl} 
+                                alt={`生成结果 ${index + 1}`}
+                                width={300}
+                                height={400}
+                                className="w-full h-auto rounded-xl"
+                                unoptimized={imageUrl.startsWith('data:')}
+                              />
+                              <div className="absolute top-2 right-2 bg-pink-500 text-white px-2 py-1 rounded-full text-xs">
+                                {index + 1}/{generationResults.length}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap gap-2">
+                            {generationResults.map((imageUrl, index) => (
+                              <a
+                                key={index}
+                                href={imageUrl}
+                                download={`小猫更衣-试穿效果-${index + 1}.jpg`}
+                                className="flex-1 min-w-[120px]"
+                              >
+                                <Button variant="outline" size="sm" className="w-full touch-target border-pink-300 text-pink-600">
+                                  📱 保存图片 {index + 1}
+                                </Button>
+                              </a>
+                            ))}
+                          </div>
+                          <Button 
+                            onClick={startNewGeneration}
+                            className="cat-gradient-button w-full touch-target"
+                          >
+                            🎨 再次生成
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <ChatMessage
+                    type="ai"
+                    content={CatSpeechSystem.getContinueInvite()}
+                    userLevel={userLevel}
+                    timestamp={new Date(step.timestamp.getTime() + 2000)}
+                  />
+                </div>
+              );
+
+            default:
+              return null;
+          }
+        })}
+      </ChatContainer>
+
+      {/* 当前步骤的交互内容 */}
+      {getCurrentStepContent()}
+
+      {/* 底部安全区域 */}
+      <div className="safe-area-bottom h-4" />
+
+      {/* 成功庆祝动画 */}
+      <SuccessCelebration 
+        trigger={showCelebration}
+        onComplete={() => setShowCelebration(false)}
+      />
+    </div>
   );
 }

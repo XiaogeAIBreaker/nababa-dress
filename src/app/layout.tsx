@@ -10,6 +10,28 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: '小猫更衣 - AI虚拟试穿',
   description: '利用AI技术实现一键虚拟试穿，让每件服装都能展现最真实的穿着效果',
+  keywords: '虚拟试穿,AI试衣,服装搭配,在线试穿,智能试衣',
+  authors: [{ name: '小猫更衣团队' }],
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: 'cover'
+  },
+  themeColor: '#FF69B4',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: '小猫更衣'
+  },
+  formatDetection: {
+    telephone: false
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-capable': 'yes'
+  }
 }
 
 export default function RootLayout({
@@ -19,11 +41,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body className={inter.className}>
+      <body className={`${inter.className} cat-gradient-bg min-h-screen`}>
         <AuthProvider>
           <ToastProvider>
-            <Header />
-            {children}
+            <div className="min-h-screen flex flex-col">
+              <Header />
+              <main className="flex-1">
+                {children}
+              </main>
+            </div>
           </ToastProvider>
         </AuthProvider>
       </body>

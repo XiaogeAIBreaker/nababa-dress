@@ -73,10 +73,35 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center space-y-4">
-          <div className="text-center mb-6">
-            <p className="text-pink-600 mb-2">✨ 欢迎来到小猫更衣</p>
-            <p className="text-sm cat-text-muted">登录后开始您的AI试穿之旅</p>
+        {/* 导航菜单 */}
+        <nav className="flex-1 px-3 py-4 space-y-2">
+          <Link href="/" onClick={handleLinkClick}>
+            <div className="flex items-center space-x-3 p-3 rounded-xl hover:bg-white/50 transition-colors touch-target">
+              <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center">
+                ✨
+              </div>
+              <span className="font-medium text-gray-700">AI试穿</span>
+              <Badge variant="secondary" className="ml-auto bg-pink-100 text-pink-600 text-xs">
+                核心
+              </Badge>
+            </div>
+          </Link>
+
+          <Link href="/about" onClick={handleLinkClick}>
+            <div className="flex items-center space-x-3 p-3 rounded-xl hover:bg-white/50 transition-colors touch-target">
+              <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center">
+                ℹ️
+              </div>
+              <span className="font-medium text-gray-700">关于我们</span>
+            </div>
+          </Link>
+        </nav>
+
+        {/* 登录注册区域 */}
+        <div className="p-4 border-t border-pink-200 space-y-3">
+          <div className="text-center mb-4">
+            <p className="text-pink-600 text-sm mb-1">✨ 立即体验AI试穿</p>
+            <p className="text-xs cat-text-muted">注册送6积分，免费开始</p>
           </div>
           
           <Link href="/auth/signin" onClick={handleLinkClick}>
@@ -132,7 +157,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
         </Link>
 
-        <Link href="/generate" onClick={handleLinkClick}>
+        <Link href="/" onClick={handleLinkClick}>
           <div className="flex items-center space-x-3 p-3 rounded-xl hover:bg-white/50 transition-colors touch-target">
             <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center">
               ✨
@@ -141,6 +166,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <Badge variant="secondary" className="ml-auto bg-pink-100 text-pink-600 text-xs">
               核心
             </Badge>
+          </div>
+        </Link>
+
+        <Link href="/about" onClick={handleLinkClick}>
+          <div className="flex items-center space-x-3 p-3 rounded-xl hover:bg-white/50 transition-colors touch-target">
+            <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center">
+              ℹ️
+            </div>
+            <span className="font-medium text-gray-700">关于我们</span>
           </div>
         </Link>
 

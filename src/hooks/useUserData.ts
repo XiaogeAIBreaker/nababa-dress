@@ -196,7 +196,11 @@ export function useUserData() {
   // 初始化用户数据
   useEffect(() => {
     if (status === 'loading') {
-      setState(prev => ({ ...prev, isLoading: true }));
+      // 只有在首次加载时显示loading，后续会话状态变更不影响界面
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: prev.user === null && prev.stats === null 
+      }));
       return;
     }
 
@@ -233,7 +237,7 @@ export function useUserData() {
     stats: state.stats,
     creditStats: state.creditStats,
     checkinStatus: state.checkinStatus,
-    isLoading: state.isLoading || status === 'loading',
+    isLoading: state.isLoading,
     error: state.error,
     isAuthenticated: status === 'authenticated',
     

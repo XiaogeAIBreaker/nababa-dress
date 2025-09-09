@@ -67,6 +67,7 @@ export default function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="请输入邮箱地址"
+                autoComplete="email"
                 required
                 disabled={loading}
               />
@@ -82,6 +83,7 @@ export default function SignIn() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="请输入密码"
+                autoComplete="current-password"
                 required
                 disabled={loading}
               />

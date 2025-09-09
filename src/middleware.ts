@@ -6,6 +6,7 @@ export default auth((req) => {
   // 公开路由，无需认证
   const publicRoutes = [
     '/',
+    '/about',
     '/auth/signin',
     '/auth/signup',
     '/api/auth/register',

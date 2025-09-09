@@ -105,6 +105,7 @@ export default function SignUp() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="请输入邮箱地址"
+                autoComplete="email"
                 required
                 disabled={loading}
               />
@@ -120,6 +121,7 @@ export default function SignUp() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="至少6个字符"
+                autoComplete="new-password"
                 required
                 disabled={loading}
                 minLength={6}
@@ -136,6 +138,7 @@ export default function SignUp() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="再次输入密码"
+                autoComplete="new-password"
                 required
                 disabled={loading}
                 minLength={6}

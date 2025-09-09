@@ -1,53 +1,14 @@
 import { dbClient } from '../db';
-
-// 用户签到记录
-export interface UserCheckin {
-  id: number;
-  user_id: number;
-  checkin_type: 'daily' | 'weekly';
-  checkin_period: string; // YYYY-MM-DD（日）或 YYYY-W##（周）
-  credits_awarded: number;
-  created_at: Date;
-}
-
-// 积分充值记录
-export interface CreditPurchase {
-  id: number;
-  user_id: number;
-  package_name: string;
-  package_price: number;
-  base_credits: number;
-  bonus_credits: number;
-  total_credits: number;
-  payment_method: string;
-  transaction_status: string;
-  admin_note?: string;
-  created_at: Date;
-}
-
-// 生成历史记录
-export interface GenerationHistory {
-  id: number;
-  user_id: number;
-  credits_used: number;
-  clothing_count: number;
-  generation_type: 'single' | 'batch';
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  error_message?: string;
-  processing_time?: number;
-  created_at: Date;
-  completed_at?: Date;
-}
-
-// 积分包配置
-export interface CreditPackage {
-  name: string;
-  price: number;
-  baseCredits: number;
-  bonusCredits: number;
-  totalCredits: number;
-  description: string;
-}
+import type { 
+  UserCheckin, 
+  CreditPackage, 
+  CreditPurchase, 
+  GenerationHistory,
+  UserLevel,
+  CheckinResult,
+  CheckinStatus,
+  PurchaseResult
+} from '@/types';
 
 export class CreditsDAO {
   
@@ -69,7 +30,7 @@ export class CreditsDAO {
   }
 
   // 用户签到
-  static async userCheckin(userId: number, userLevel: 'free' | 'plus' | 'pro'): Promise<{ success: boolean; message: string; creditsAwarded?: number; checkinType?: string }> {
+  static async userCheckin(userId: number, userLevel: UserLevel): Promise<CheckinResult> {
     const now = new Date();
     
     // 根据用户等级确定签到类型和周期
@@ -126,7 +87,7 @@ export class CreditsDAO {
   }
 
   // 检查签到状态
-  static async getCheckinStatus(userId: number, userLevel: 'free' | 'plus' | 'pro'): Promise<{ canCheckin: boolean; nextCheckinTime?: Date; checkinType: string }> {
+  static async getCheckinStatus(userId: number, userLevel: UserLevel): Promise<CheckinStatus> {
     const now = new Date();
     const isWeeklyUser = userLevel === 'free';
     const checkinType = isWeeklyUser ? 'weekly' : 'daily';
@@ -171,14 +132,17 @@ export class CreditsDAO {
         args: [userId, limit]
       });
       
-      return result.rows.map(row => ({
-        id: row.id as number,
-        user_id: row.user_id as number,
-        checkin_type: row.checkin_type as 'daily' | 'weekly',
-        checkin_period: row.checkin_period as string,
-        credits_awarded: row.credits_awarded as number,
-        created_at: new Date(row.created_at as string)
-      }));
+      return result.rows.map(row => {
+        const rowData = row as Record<string, unknown>;
+        return {
+          id: rowData.id as number,
+          user_id: rowData.user_id as number,
+          checkin_type: rowData.checkin_type as 'daily' | 'weekly',
+          checkin_period: rowData.checkin_period as string,
+          credits_awarded: rowData.credits_awarded as number,
+          created_at: new Date(rowData.created_at as string)
+        };
+      });
     } catch (error) {
       console.error('获取签到历史失败:', error);
       return [];
@@ -190,7 +154,7 @@ export class CreditsDAO {
     userId: number,
     packageName: string,
     adminNote?: string
-  ): Promise<{ success: boolean; message: string; creditsAdded?: number; newUserLevel?: string }> {
+  ): Promise<PurchaseResult> {
     const packageInfo = this.CREDIT_PACKAGES.find(pkg => pkg.name === packageName);
     if (!packageInfo) {
       return { success: false, message: '积分包不存在' };
@@ -251,19 +215,22 @@ export class CreditsDAO {
         args: [userId, limit]
       });
       
-      return result.rows.map(row => ({
-        id: row.id as number,
-        user_id: row.user_id as number,
-        package_name: row.package_name as string,
-        package_price: row.package_price as number,
-        base_credits: row.base_credits as number,
-        bonus_credits: row.bonus_credits as number,
-        total_credits: row.total_credits as number,
-        payment_method: row.payment_method as string,
-        transaction_status: row.transaction_status as string,
-        admin_note: row.admin_note as string,
-        created_at: new Date(row.created_at as string)
-      }));
+      return result.rows.map(row => {
+        const rowData = row as Record<string, unknown>;
+        return {
+          id: rowData.id as number,
+          user_id: rowData.user_id as number,
+          package_name: rowData.package_name as string,
+          package_price: rowData.package_price as number,
+          base_credits: rowData.base_credits as number,
+          bonus_credits: rowData.bonus_credits as number,
+          total_credits: rowData.total_credits as number,
+          payment_method: rowData.payment_method as string,
+          transaction_status: rowData.transaction_status as string,
+          admin_note: rowData.admin_note as string,
+          created_at: new Date(rowData.created_at as string)
+        };
+      });
     } catch (error) {
       console.error('获取充值历史失败:', error);
       return [];
@@ -284,15 +251,15 @@ export class CreditsDAO {
         args: [userId, creditsUsed, clothingCount, generationType]
       });
       
-      const record = result.rows[0] as any;
+      const record = result.rows[0] as Record<string, unknown>;
       return {
-        id: record.id,
-        user_id: record.user_id,
-        credits_used: record.credits_used,
-        clothing_count: record.clothing_count,
-        generation_type: record.generation_type,
-        status: record.status,
-        created_at: new Date(record.created_at)
+        id: record.id as number,
+        user_id: record.user_id as number,
+        credits_used: record.credits_used as number,
+        clothing_count: record.clothing_count as number,
+        generation_type: record.generation_type as 'single' | 'batch',
+        status: record.status as 'pending' | 'processing' | 'completed' | 'failed',
+        created_at: new Date(record.created_at as string)
       };
     } catch (error) {
       console.error('创建生成历史记录失败:', error);
@@ -336,7 +303,7 @@ export class CreditsDAO {
         throw new Error('生成历史记录不存在');
       }
       
-      const record = result.rows[0] as any;
+      const record = result.rows[0] as Record<string, unknown>;
       return {
         id: record.id,
         user_id: record.user_id,
@@ -363,18 +330,21 @@ export class CreditsDAO {
         args: [userId, limit]
       });
       
-      return result.rows.map(row => ({
-        id: row.id as number,
-        user_id: row.user_id as number,
-        credits_used: row.credits_used as number,
-        clothing_count: row.clothing_count as number,
-        generation_type: row.generation_type as any,
-        status: row.status as any,
-        error_message: row.error_message as string,
-        processing_time: row.processing_time as number,
-        created_at: new Date(row.created_at as string),
-        completed_at: row.completed_at ? new Date(row.completed_at as string) : undefined
-      }));
+      return result.rows.map(row => {
+        const rowData = row as Record<string, unknown>;
+        return {
+          id: rowData.id as number,
+          user_id: rowData.user_id as number,
+          credits_used: rowData.credits_used as number,
+          clothing_count: rowData.clothing_count as number,
+          generation_type: rowData.generation_type as 'single' | 'batch',
+          status: rowData.status as 'pending' | 'processing' | 'completed' | 'failed',
+          error_message: rowData.error_message as string,
+          processing_time: rowData.processing_time as number,
+          created_at: new Date(rowData.created_at as string),
+          completed_at: rowData.completed_at ? new Date(rowData.completed_at as string) : undefined
+        };
+      });
     } catch (error) {
       console.error('获取生成历史失败:', error);
       return [];
@@ -416,24 +386,24 @@ export class CreditsDAO {
         })
       ]);
       
-      const genStats = generationResult.rows[0] as any;
-      const checkinStats = checkinResult.rows[0] as any;
-      const purchaseStats = purchaseResult.rows[0] as any;
+      const genStats = generationResult.rows[0] as Record<string, unknown>;
+      const checkinStats = checkinResult.rows[0] as Record<string, unknown>;
+      const purchaseStats = purchaseResult.rows[0] as Record<string, unknown>;
       
       return {
         // 生成统计
-        total_generations: genStats.total_generations || 0,
-        successful_generations: genStats.successful_generations || 0,
-        failed_generations: genStats.failed_generations || 0,
-        total_credits_used: genStats.total_credits_used || 0,
+        total_generations: (genStats.total_generations as number) || 0,
+        successful_generations: (genStats.successful_generations as number) || 0,
+        failed_generations: (genStats.failed_generations as number) || 0,
+        total_credits_used: (genStats.total_credits_used as number) || 0,
         
         // 签到统计
-        total_checkins: checkinStats.total_checkins || 0,
-        total_checkin_credits: checkinStats.total_checkin_credits || 0,
+        total_checkins: (checkinStats.total_checkins as number) || 0,
+        total_checkin_credits: (checkinStats.total_checkin_credits as number) || 0,
         
         // 充值统计
-        total_purchases: purchaseStats.total_purchases || 0,
-        total_purchased_credits: purchaseStats.total_purchased_credits || 0
+        total_purchases: (purchaseStats.total_purchases as number) || 0,
+        total_purchased_credits: (purchaseStats.total_purchased_credits as number) || 0
       };
     } catch (error) {
       console.error('获取用户积分统计失败:', error);

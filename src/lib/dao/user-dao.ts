@@ -1,31 +1,55 @@
 import { dbClient } from '../db';
 import { hashPassword, verifyPassword, isBcryptHash } from '../crypto-edge';
+import type { User, CreateUserInput, UpdateUserInput, UserLevel } from '@/types';
 
-export interface User {
-  id: number;
-  email: string;
-  password_hash: string;
-  user_level: 'free' | 'plus' | 'pro';
-  credits: number;
-  wechat_upgraded: boolean;
-  created_at: Date;
-  updated_at: Date;
-}
-
-export interface CreateUserInput {
-  email: string;
-  password: string;
-}
-
-export interface UpdateUserInput {
-  user_level?: 'free' | 'plus' | 'pro';
-  credits?: number;
-  wechat_upgraded?: boolean;
-}
-
+/**
+ * 用户数据访问对象
+ * 
+ * 负责用户相关的数据库操作，包括：
+ * - 用户创建、查询、更新
+ * - 密码验证和迁移
+ * - 积分管理
+ * - 用户等级管理
+ * - 统计信息获取
+ * 
+ * @example
+ * ```typescript
+ * // 创建新用户
+ * const user = await UserDAO.createUser({
+ *   email: 'user@example.com',
+ *   password: 'password123'
+ * });
+ * 
+ * // 查询用户
+ * const user = await UserDAO.findUserById(1);
+ * 
+ * // 更新积分
+ * await UserDAO.updateUserCredits(userId, 10);
+ * ```
+ */
 export class UserDAO {
   
-  // 创建新用户
+  /**
+   * 创建新用户
+   * 
+   * 创建新用户账户，包括邮箱唯一性检查、密码加密、初始积分设置
+   * 
+   * @param input - 用户创建信息
+   * @param input.email - 用户邮箱（必须唯一）
+   * @param input.password - 用户密码（将被加密存储）
+   * @returns Promise<User> 创建的用户信息
+   * 
+   * @throws {Error} 当邮箱已被注册时抛出错误
+   * 
+   * @example
+   * ```typescript
+   * const newUser = await UserDAO.createUser({
+   *   email: 'newuser@example.com',
+   *   password: 'securepassword123'
+   * });
+   * console.log(`Created user with ID: ${newUser.id}`);
+   * ```
+   */
   static async createUser(input: CreateUserInput): Promise<User> {
     const { email, password } = input;
     
@@ -44,16 +68,16 @@ export class UserDAO {
       args: [email, password_hash, 'free', 6]
     });
     
-    const user = result.rows[0] as any;
+    const userData = result.rows[0] as Record<string, unknown>;
     return {
-      id: user.id,
-      email: user.email,
-      password_hash: user.password_hash,
-      user_level: user.user_level,
-      credits: user.credits,
-      wechat_upgraded: Boolean(user.wechat_upgraded),
-      created_at: new Date(user.created_at),
-      updated_at: new Date(user.updated_at)
+      id: userData.id as number,
+      email: userData.email as string,
+      password_hash: userData.password_hash as string,
+      user_level: userData.user_level as UserLevel,
+      credits: userData.credits as number,
+      wechat_upgraded: Boolean(userData.wechat_upgraded),
+      created_at: new Date(userData.created_at as string),
+      updated_at: new Date(userData.updated_at as string)
     };
   }
   
@@ -68,16 +92,16 @@ export class UserDAO {
       return null;
     }
     
-    const user = result.rows[0] as any;
+    const userData = result.rows[0] as Record<string, unknown>;
     return {
-      id: user.id,
-      email: user.email,
-      password_hash: user.password_hash,
-      user_level: user.user_level,
-      credits: user.credits,
-      wechat_upgraded: Boolean(user.wechat_upgraded),
-      created_at: new Date(user.created_at),
-      updated_at: new Date(user.updated_at)
+      id: userData.id as number,
+      email: userData.email as string,
+      password_hash: userData.password_hash as string,
+      user_level: userData.user_level as UserLevel,
+      credits: userData.credits as number,
+      wechat_upgraded: Boolean(userData.wechat_upgraded),
+      created_at: new Date(userData.created_at as string),
+      updated_at: new Date(userData.updated_at as string)
     };
   }
   
@@ -92,16 +116,16 @@ export class UserDAO {
       return null;
     }
     
-    const user = result.rows[0] as any;
+    const userData = result.rows[0] as Record<string, unknown>;
     return {
-      id: user.id,
-      email: user.email,
-      password_hash: user.password_hash,
-      user_level: user.user_level,
-      credits: user.credits,
-      wechat_upgraded: Boolean(user.wechat_upgraded),
-      created_at: new Date(user.created_at),
-      updated_at: new Date(user.updated_at)
+      id: userData.id as number,
+      email: userData.email as string,
+      password_hash: userData.password_hash as string,
+      user_level: userData.user_level as UserLevel,
+      credits: userData.credits as number,
+      wechat_upgraded: Boolean(userData.wechat_upgraded),
+      created_at: new Date(userData.created_at as string),
+      updated_at: new Date(userData.updated_at as string)
     };
   }
   
@@ -130,16 +154,16 @@ export class UserDAO {
       throw new Error('用户不存在');
     }
     
-    const user = result.rows[0] as any;
+    const userData = result.rows[0] as Record<string, unknown>;
     return {
-      id: user.id,
-      email: user.email,
-      password_hash: user.password_hash,
-      user_level: user.user_level,
-      credits: user.credits,
-      wechat_upgraded: Boolean(user.wechat_upgraded),
-      created_at: new Date(user.created_at),
-      updated_at: new Date(user.updated_at)
+      id: userData.id as number,
+      email: userData.email as string,
+      password_hash: userData.password_hash as string,
+      user_level: userData.user_level as UserLevel,
+      credits: userData.credits as number,
+      wechat_upgraded: Boolean(userData.wechat_upgraded),
+      created_at: new Date(userData.created_at as string),
+      updated_at: new Date(userData.updated_at as string)
     };
   }
   
@@ -177,16 +201,16 @@ export class UserDAO {
       throw new Error('用户不存在');
     }
     
-    const user = result.rows[0] as any;
+    const userData = result.rows[0] as Record<string, unknown>;
     return {
-      id: user.id,
-      email: user.email,
-      password_hash: user.password_hash,
-      user_level: user.user_level,
-      credits: user.credits,
-      wechat_upgraded: Boolean(user.wechat_upgraded),
-      created_at: new Date(user.created_at),
-      updated_at: new Date(user.updated_at)
+      id: userData.id as number,
+      email: userData.email as string,
+      password_hash: userData.password_hash as string,
+      user_level: userData.user_level as UserLevel,
+      credits: userData.credits as number,
+      wechat_upgraded: Boolean(userData.wechat_upgraded),
+      created_at: new Date(userData.created_at as string),
+      updated_at: new Date(userData.updated_at as string)
     };
   }
   
@@ -219,7 +243,26 @@ export class UserDAO {
     });
   }
   
-  // 更新用户积分（可正可负）
+  /**
+   * 更新用户积分
+   * 
+   * 增加或减少用户积分，支持正负值操作，包含余额验证
+   * 
+   * @param userId - 用户ID
+   * @param creditsDelta - 积分变化量（正数为增加，负数为减少）
+   * @returns Promise<User> 更新后的用户信息
+   * 
+   * @throws {Error} 当用户不存在或积分不足时抛出错误
+   * 
+   * @example
+   * ```typescript
+   * // 增加积分
+   * await UserDAO.updateUserCredits(1, 10);
+   * 
+   * // 减少积分
+   * await UserDAO.updateUserCredits(1, -5);
+   * ```
+   */
   static async updateUserCredits(userId: number, creditsDelta: number): Promise<User> {
     const user = await this.findUserById(userId);
     if (!user) {
@@ -290,15 +333,15 @@ export class UserDAO {
       })
     ]);
     
-    const stats = generationResult.rows[0] as any;
-    const credits = creditsResult.rows[0] as any;
+    const stats = generationResult.rows[0] as Record<string, unknown>;
+    const credits = creditsResult.rows[0] as Record<string, unknown>;
     
     return {
-      total_generations: stats.total_generations || 0,
-      successful_generations: stats.successful_generations || 0,
-      failed_generations: stats.failed_generations || 0,
-      total_credits_used: stats.total_credits_used || 0,
-      current_credits: credits?.credits || 0
+      total_generations: (stats.total_generations as number) || 0,
+      successful_generations: (stats.successful_generations as number) || 0,
+      failed_generations: (stats.failed_generations as number) || 0,
+      total_credits_used: (stats.total_credits_used as number) || 0,
+      current_credits: (credits?.credits as number) || 0
     };
   }
 }

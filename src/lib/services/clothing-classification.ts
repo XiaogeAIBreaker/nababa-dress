@@ -108,7 +108,7 @@ E - 配饰类（帽子、包包、手表、眼镜、首饰等）
           'Authorization': `Bearer ${AI_CONFIG.apiKey}`
         },
         body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(30000)
+        signal: AbortSignal.timeout(AI_CONFIG.timeout)
       });
 
       console.log('API响应状态:', response.status, response.statusText);

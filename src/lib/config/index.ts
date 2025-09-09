@@ -23,7 +23,6 @@ export interface AIConfig {
   timeout: number;
   maxRetries: number;
   requestOptions: {
-    maxTokens: number;
     temperature: number;
   };
 }
@@ -87,10 +86,9 @@ export const AI_CONFIG: AIConfig = {
   apiUrl: 'https://kg-api.cloud/v1/chat/completions',
   apiKey: getEnvironmentConfig().APICORE_AI_KEY,
   model: 'gemini-2.5-flash-image-preview',
-  timeout: 60000, // 60秒
+  timeout: 120000, // 120秒
   maxRetries: 2,
   requestOptions: {
-    maxTokens: 500,
     temperature: 0.1,
   }
 };
